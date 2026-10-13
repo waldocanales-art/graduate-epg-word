@@ -31,9 +31,9 @@ button.outline{background:white;color:#294433;border:1px solid #a8b7ad}
 #message.error{border-left:4px solid #b25631;background:#fff3ed}
 #result{display:none}.headrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 #groupId{font-size:32px;margin:0}.warn{padding:12px;background:#fff7ea;border-left:4px solid #d78234;margin:15px 0;font-size:13px}
-a{color:#a65411}.divider{height:1px;background:#e5e9e4;margin:16px 0}
+a{color:#a65411}.divider{height:1px;background:#e5e9e4;margin:16px 0}.actionrow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.actionrow button{flex:1;min-width:155px}.doc>div:first-child{min-width:0;overflow-wrap:anywhere}@media(max-width:550px){.doc{align-items:flex-start;flex-direction:column}.doc button{min-height:42px}.actionrow{flex-direction:column}}
 </style></head><body>
-<header class="header"><div class="brand">UA | HAWKS</div><p>Documentos EPG · Búsqueda por número de grupo · V5</p></header>
+<header class="header"><div class="brand">UA | HAWKS</div><p>Documentos EPG · Control y generación documental · V6.1 LAB</p></header>
 <main>
 <div class="note"><b>Flujo simplificado</b> · Para localizar el expediente solo necesitas el número de grupo. Los datos existentes se recuperan del control, sin escribir nombres, títulos ni JSON. El panel es experimental y no modifica n8n.</div>
 <div class="grid">
@@ -58,13 +58,13 @@ a{color:#a65411}.divider{height:1px;background:#e5e9e4;margin:16px 0}
 <div id="result">
 <div class="headrow"><div><p class="muted" style="margin:0">Grupo identificado</p><h2 id="groupId"></h2></div><span class="chip" id="phase"></span></div>
 <h3 id="team"></h3><p id="program" class="muted"></p>
-<div class="chips"><span class="chip" id="sourceState"></span><span class="chip">Control 13/10/2026</span></div>
+<div class="chips"><span class="chip" id="sourceState"></span><span class="chip">Instantánea 13/10/2026</span></div>
 <div class="warn"><b>Verificación de fuentes:</b> <span id="findings"></span></div>
 <a class="linkbtn secondary" id="folderLink" href="#" target="_blank" rel="noopener noreferrer">Abrir expediente en Drive</a>
 <div class="divider"></div>
 <div class="intro"><span class="step">3</span> Generar todos y validar expediente</div>
 <p class="muted">Revisa en conjunto TI, documentos, guía 018/088, normativa de estilo y Turnitin. Descarga un ZIP con inventario, fuentes y observaciones; los originales disponibles permanecen intactos. Mientras no exista lectura autenticada de Drive, este ZIP es de <b>control preliminar</b>, no el expediente definitivo.</p>
-<button id="batchButton" class="wide" type="button">Generar control completo y validar</button>
+<div class="actionrow"><button id="auditButton" type="button" class="outline" disabled>Revisar brechas</button><button id="downloadCsv" type="button" class="outline" disabled>Descargar observaciones CSV</button></div><button id="batchButton" class="wide" type="button" disabled>Generar ZIP de control y validar</button>
 <div id="batchStatus" class="warn" role="status" style="display:none"></div>
 <div class="divider"></div><div class="intro"><span class="step">4</span> Trabajar un documento por vez</div>
 <p class="muted">Para cada archivo puedes <b>Recuperar original</b> de Drive o, si están comprobados los datos necesarios, <b>Generar Word nuevo</b>. La generación comienza con las hojas de metadatos de los grupos habilitados; otras declaraciones y actas no se fabrican sin fuentes completas.</p>
@@ -75,8 +75,57 @@ a{color:#a65411}.divider{height:1px;background:#e5e9e4;margin:16px 0}
 <script>
 const el=id=>document.getElementById(id);
 let current=null;
+const lockActions=locked=>{for(const id of ['batchButton','auditButton','downloadCsv'])el(id).disabled=locked;};
 const safe=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function msg(s,error=false){el('message').textContent=s;el('message').className=error?'error':'';}
+
+async function fetchAudit(){
+ if(!current)throw Error('Primero busca un grupo');
+ const r=await fetch('/v6/groups/'+encodeURIComponent(current.group_id)+'/audit',{
+  headers:{'X-API-Key':el('key').value},cache:'no-store'});
+ const body=await r.json().catch(()=>({}));
+ if(!r.ok)throw Error(typeof body.detail==='string'?body.detail:'La auditoría no está disponible');
+ return body;
+}
+function showAudit(audit){
+ const place=el('batchStatus');place.style.display='block';place.replaceChildren();
+ const p=document.createElement('p');const issues=audit.issues||[];
+ p.textContent='Grupo '+audit.group_id+' · Fase '+audit.phase+' · '+issues.length+
+ ' observación(es). Guía: '+audit.normative_guide+
+ '. Estilo: '+((audit.styles_detected||[]).join(', ')||'sin confirmar')+'.';
+ place.append(p);
+ const warning=document.createElement('p');warning.className='muted';
+ warning.textContent='Diagnóstico preliminar. No acredita firmas, huellas, contenido del TI ni aprobación institucional.';
+ place.append(warning);
+ for(const issue of issues){
+  const line=document.createElement('p');line.className='muted';
+  line.textContent='• '+issue.severity+' · '+issue.code+' — '+issue.detail;
+  place.append(line);
+ }
+}
+el('auditButton').addEventListener('click',async()=>{
+ const btn=el('auditButton');btn.disabled=true;
+ try{showAudit(await fetchAudit());}
+ catch(err){const p=el('batchStatus');p.style.display='block';p.textContent='No se pudo revisar: '+err.message;}
+ finally{btn.disabled=!current;}
+});
+el('downloadCsv').addEventListener('click',async()=>{
+ if(!current)return;
+ const btn=el('downloadCsv');btn.disabled=true;
+ try{
+  const r=await fetch('/v6/groups/'+encodeURIComponent(current.group_id)+'/observaciones.csv',{
+   headers:{'X-API-Key':el('key').value},cache:'no-store'});
+  if(!r.ok){const body=await r.json().catch(()=>({}));throw Error(typeof body.detail==='string'?body.detail:'CSV no disponible');}
+  const blob=await r.blob();
+  if(blob.size>5000000)throw Error('CSV más grande que el límite admitido');
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='HAWKS_EPG_'+current.group_id+'_OBSERVACIONES.csv';a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),5000);
+  msg('Observaciones CSV descargadas para el grupo '+current.group_id+'.');
+ }catch(err){msg('No se pudo descargar el CSV: '+err.message,true);}
+ finally{btn.disabled=!current;}
+});
+
 el('batchButton').addEventListener('click',async()=>{
 if(!current){msg('Busca primero un número de grupo.',true);return;}
 const button=el('batchButton'),status=el('batchStatus');button.disabled=true;
@@ -121,12 +170,13 @@ el('lookupForm').addEventListener('submit',async ev=>{
 ev.preventDefault();
 const group=el('grupo').value.trim();
 if(!/^[0-9]{1,9}$/.test(group)||Number(group)===0){msg('Escribe solo el número del grupo.',true);return;}
+current=null;lockActions(true);el('batchStatus').style.display='none';
 el('search').disabled=true;msg('Consultando el control documental...');el('result').style.display='none';el('empty').style.display='block';
 try{
 const response=await fetch('/v5/groups/'+encodeURIComponent(group),{headers:{'X-API-Key':el('key').value},cache:'no-store'});
 const data=await response.json();
 if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:JSON.stringify(data.detail||'Error'));
-current=data;el('result').style.display='block';el('empty').style.display='none';
+current=data;lockActions(false);el('result').style.display='block';el('empty').style.display='none';
 el('groupId').textContent='N.º '+data.group_id;
 el('phase').textContent=data.phase||'Fase por verificar';
 el('team').textContent=data.team||'Equipo por verificar';
@@ -142,7 +192,7 @@ const t=document.createElement('div');const b=document.createElement('b');b.text
 const p=document.createElement('p');p.textContent='Estado: '+doc.status;t.append(b,p);
 const bt=document.createElement('button');bt.type='button';
 bt.className=doc.can_download?'secondary':'outline';
-bt.textContent=doc.can_download?'Recuperar documento':'Ver pendiente';
+bt.textContent=doc.can_download?'Recuperar documento':'Ver motivo pendiente';
 if(doc.can_download||doc.can_generate_new)ready++;
 bt.addEventListener('click',async()=>{
 el('selection').style.display='block';
