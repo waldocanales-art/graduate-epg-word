@@ -98,6 +98,8 @@ def render(req: RenderRequest, x_api_key: str | None = Header(default=None)):
 import re as _re
 import zlib as _zlib
 from .document_actions_v5 import document_rows, selected_document, read_private_catalog
+from .verified_metadata_v5 import generate_metadata, eligible, profiles
+from app import TEMPLATE_DIR
 
 _DOCUMENT_TYPES_V5 = [
     ("METADATOS", "Hoja de metadatos"),
@@ -132,6 +134,24 @@ def _v5_group(group_number):
         raise HTTPException(422, "Escribe solamente el número del grupo")
     return str(int(group_number))
 
+def _v5_documents(gid):
+    rows = document_rows(gid)
+    if eligible(gid):
+        count = len(profiles()[gid]["authors"])
+        found = False
+        for row in rows:
+            if row["id"].startswith("METADATA"):
+                row["can_generate_new"] = True
+                row["generation_status"] = "NUEVO_WORD_EN_REVISION"
+                found = True
+        if not found:
+            rows.insert(0, {"id": "METADATA_" + str(count),
+                            "name": "Hoja de metadatos · " + str(count) + " autores",
+                            "status": "LISTO_PARA_BORRADOR",
+                            "can_download": False,
+                            "can_generate_new": True})
+    return rows
+
 @app.get("/v5/groups/{group_number}")
 def lookup_group_v5(group_number: str, x_api_key: str | None = Header(default=None)):
     auth(x_api_key)
@@ -158,7 +178,7 @@ def lookup_group_v5(group_number: str, x_api_key: str | None = Header(default=No
         "snapshot_date": "2026-10-13",
         "live_drive_connected": False,
         "generation_ready": False,
-        "documents": document_rows(group_id),
+        "documents": _v5_documents(group_id),
         "notice": "Esta es una instantánea de expedientes localizados. Los datos definitivos y el Word oficial requieren conectar las fuentes institucionales en el servidor."
     }
 
@@ -168,7 +188,7 @@ def list_group_docs_v5(group_number: str, x_api_key: str | None = Header(default
     gid = _v5_group(group_number)
     if gid not in _v5_index():
         raise HTTPException(404, "Grupo no identificado")
-    return {"group_id": gid, "documents": document_rows(gid)}
+    return {"group_id": gid, "documents": _v5_documents(gid)}
 
 
 @app.post("/v5/groups/{group_number}/documents/{document_id}/generate")
@@ -198,6 +218,55 @@ def generate_one_v5(group_number: str, document_id: str, x_api_key: str | None =
         "message": "Documento ya entregado al expediente. Abre/descarga su original de Drive: no se reemplaza una firma ni se modifica el contenido.",
         "new_word_generated": False
     }
+
+
+@app.post("/v5/groups/{group_number}/documents/{document_id}/generate-word")
+def generate_word_v5(group_number: str, document_id: str, x_api_key: str | None = Header(default=None)):
+    """Real Word generation with current installed template, pending Liz QA."""
+    auth(x_api_key)
+    gid = _v5_group(group_number)
+    if gid not in _v5_index():
+        raise HTTPException(404, "Equipo fuera del padrón")
+    if not eligible(gid):
+        raise HTTPException(409, "No hay suficientes campos originales cotejados; no se generan datos inventados")
+    count = len(profiles()[gid]["authors"])
+    if not document_id.startswith("METADATA") or (
+        document_id.startswith("METADATA_") and
+        document_id[9:].isdigit() and int(document_id[9:]) != count
+    ):
+        raise HTTPException(409, "Solo metadatos, con la cantidad auténtica de autores, está habilitado para nuevo Word")
+    template = TEMPLATE_DIR / TEMPLATES["METADATA_" + str(count)]
+    try:
+        payload, qa = generate_metadata(gid, template)
+    except (OSError, ValueError, KeyError) as exc:
+        raise HTTPException(409, {"status":"DOCUMENT_NOT_GENERATED", "detail":str(exc)})
+    return Response(
+        content=payload,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition":'attachment; filename="HAWKS_EPG_'+gid+'_METADATOS_BORRADOR.docx"',
+                 "Cache-Control":"private, no-store",
+                 "X-HAWKS-DOCUMENT-STATUS":"BORRADOR_PENDIENTE_REVISION",
+                 "X-HAWKS-FIELDS-REPLACED":str(qa["fields_replaced"])}
+    )
+
+
+@app.get("/v5/generation-health")
+def generation_health_v5():
+    """Non-sensitive self-test; never returns author data or bytes."""
+    tested={}
+    for gid, profile in profiles().items():
+        count=len(profile.get("authors", []))
+        if count not in (1,2,3):continue
+        try:
+            binary,qa=generate_metadata(gid,TEMPLATE_DIR/TEMPLATES["METADATA_"+str(count)])
+            tested[gid]={"generates_docx":binary[:2]==b"PK",
+                         "bytes":len(binary),"filled_fields":qa["fields_replaced"]}
+        except Exception as exc:
+            tested[gid]={"generates_docx":False,"error_type":type(exc).__name__}
+    return {"ok":all(x["generates_docx"] for x in tested.values()),
+            "groups_with_verified_metadata":len(tested),
+            "tests":tested,
+            "official_2026_09_template_verified":False}
 
 
 @app.get("/v5/index-health")
