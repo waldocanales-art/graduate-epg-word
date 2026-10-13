@@ -114,6 +114,14 @@ def _v5_index():
         return {}
     try:
         data = json.loads(_zlib.decompress(base64.b64decode(raw, validate=True)))
+        if isinstance(data, dict) and "groups" in data:
+            names, statuses = data.get("programs", []), data.get("statuses", [])
+            return {
+                gid: [v[0], names[v[1]], "F" + str(v[2]), v[3], statuses[v[4]],
+                      "Carpeta candidata localizada; revisar documentos originales de Drive."]
+                for gid, v in data["groups"].items()
+                if isinstance(v, list) and len(v) >= 5
+            }
         return data if isinstance(data, dict) else {}
     except (ValueError, TypeError, OSError):
         raise HTTPException(503, "Índice de grupos no legible; revisar configuración de Render")
