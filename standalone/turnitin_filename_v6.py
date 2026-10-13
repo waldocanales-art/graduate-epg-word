@@ -6,11 +6,11 @@ la revisión del PDF original. Evita confundir escritura IA con similitud.
 import re
 import unicodedata
 
-PERCENT = re.compile(r"(?<![0-9])([0-9]{1,3})\\s*%")
-AI_AFTER = re.compile(r"^[-_\\s]*(?:IA|AI|ESCRITURA[-_\\s]*(?:CON[-_\\s]*)?IA)(?:[-_\\s.]|$)")
-AI_BEFORE = re.compile(r"(?:^|[-_\\s])(?:IA|AI|ESCRITURA[-_\\s]*(?:CON[-_\\s]*)?IA)[-_\\s]*$")
-SIM_AFTER = re.compile(r"^[-_\\s]*(?:SIMILITUD|SIMILARITY|COINCIDENCIA)(?:[-_\\s.]|$)")
-SIM_BEFORE = re.compile(r"(?:^|[-_\\s])(?:SIMILITUD|SIMILARITY|COINCIDENCIA)[-_\\s]*$")
+PERCENT = re.compile(r"(?<![0-9])([0-9]{1,3})\s*%")
+AI_AFTER = re.compile(r"^[-_\s]*(?:IA|AI|ESCRITURA[-_\s]*(?:CON[-_\s]*)?IA)(?:[-_\s.]|$)")
+AI_BEFORE = re.compile(r"(?:^|[-_\s])(?:IA|AI|ESCRITURA[-_\s]*(?:CON[-_\s]*)?IA)[-_\s]*$")
+SIM_AFTER = re.compile(r"^[-_\s]*(?:SIMILITUD|SIMILARITY|COINCIDENCIA)(?:[-_\s.]|$)")
+SIM_BEFORE = re.compile(r"(?:^|[-_\s])(?:SIMILITUD|SIMILARITY|COINCIDENCIA)[-_\s]*$")
 
 
 def extract_scores(filename):
