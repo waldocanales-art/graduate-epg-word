@@ -84,6 +84,9 @@ def list_folder_tree(folder_id, *, max_files=160, max_depth=3, session=None):
     files = []
     truncated = False
     while pending:
+        if len(visited) >= 80:
+            truncated = True
+            break
         parent, depth = pending.popleft()
         if parent in visited:
             continue
@@ -101,7 +104,7 @@ def list_folder_tree(folder_id, *, max_files=160, max_depth=3, session=None):
             })
             for item in data.get("files", []):
                 if item.get("mimeType") == FOLDER_MIME:
-                    if depth < max_depth:
+                    if depth < max_depth and len(visited) + len(pending) < 80:
                         pending.append((item["id"], depth + 1))
                     else:
                         truncated = True
