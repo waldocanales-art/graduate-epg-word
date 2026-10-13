@@ -120,13 +120,26 @@ def _v5_index():
         data = json.loads(_zlib.decompress(base64.b64decode(raw, validate=True)))
         if isinstance(data, dict) and "groups" in data:
             names, statuses = data.get("programs", []), data.get("statuses", [])
-            return {
+            result = {
                 gid: [v[0], names[v[1]], "F" + str(v[2]), v[3], statuses[v[4]],
                       "Carpeta candidata localizada; revisar documentos originales de Drive."]
                 for gid, v in data["groups"].items()
                 if isinstance(v, list) and len(v) >= 5
             }
-        return data if isinstance(data, dict) else {}
+        else:
+            result = data if isinstance(data, dict) else {}
+        # Extensiones verificadas contra GRUPOS, guardadas únicamente en
+        # variables privadas de Render, sin reconstruir el índice anterior.
+        extra = json.loads(os.getenv("HAWKS_V5_EXTRA_GROUPS_JSON", "{}"))
+        if not isinstance(extra, dict):
+            raise ValueError("Extensión de grupos inválida")
+        for group_id, record in extra.items():
+            if not _re.fullmatch(r"[0-9]{1,9}", str(group_id)) or (
+                not isinstance(record, list) or len(record) < 6
+            ):
+                raise ValueError("Registro adicional de grupo inválido")
+            result.setdefault(group_id, record)
+        return result
     except (ValueError, TypeError, OSError):
         raise HTTPException(503, "Índice de grupos no legible; revisar configuración de Render")
 
@@ -162,7 +175,7 @@ def lookup_group_v5(group_number: str, x_api_key: str | None = Header(default=No
         raise HTTPException(503, "Catálogo todavía no sincronizado. El servicio no tiene acceso a Drive/Gmail.")
     item = index.get(group_id)
     if not item:
-        raise HTTPException(404, "Grupo no encontrado en los 84 registros de control; no se inventarán sus datos.")
+        raise HTTPException(404, "Grupo no encontrado en el padrón de control; no se inventarán sus datos.")
     if not isinstance(item, list) or len(item) < 6:
         raise HTTPException(503, "Entrada de control incompleta")
     name, program, phase, folder_id, source_status, findings = item[:6]
@@ -293,7 +306,7 @@ def index_health_v5():
                 document_rows(gid, docs)
             except (ValueError, TypeError, KeyError):
                 broken.append(gid)
-        return {"ok": len(index) == 84 and not broken,
+        return {"ok": len(index) >= 84 and not broken,
                 "indexed_groups": len(index),
                 "catalogued_document_groups": len(docs),
                 "document_sources_catalogued": sum(len(v) for v in docs.values() if isinstance(v, list)),
