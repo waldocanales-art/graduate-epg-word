@@ -142,7 +142,7 @@ def _csv(items, headings):
     for row in items: writer.writerow(row)
     return stream.getvalue().encode("utf-8-sig")
 
-def build_control_zip(report, originals=None):
+def build_control_zip(report, originals=None, generated=None):
     """Entrega ZIP auditable. Originales solo si se pudieron bajar con autenticación."""
     gid = report["group_id"]
     bio = io.BytesIO()
@@ -165,4 +165,8 @@ def build_control_zip(report, originals=None):
             filename, contents = entry
             sanitized = NAME_RE.sub("_", PurePosixPath(filename).name)[:145]
             z.writestr("ORIGINALES/%03d_%s" % (i+1,sanitized), contents)
+        for i, entry in enumerate(generated or []):
+            filename, contents = entry
+            sanitized = NAME_RE.sub("_", PurePosixPath(filename).name)[:145]
+            z.writestr("GENERADOS_EN_REVISION/%03d_%s" % (i+1,sanitized), contents)
     return bio.getvalue()
