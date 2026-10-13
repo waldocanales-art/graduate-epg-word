@@ -62,7 +62,7 @@ a{color:#a65411}.divider{height:1px;background:#e5e9e4;margin:16px 0}
 <div class="warn"><b>Verificación de fuentes:</b> <span id="findings"></span></div>
 <a class="linkbtn secondary" id="folderLink" href="#" target="_blank" rel="noopener noreferrer">Abrir expediente en Drive</a>
 <div class="divider"></div><div class="intro"><span class="step">3</span> Trabajar un documento por vez</div>
-<p class="muted">Selecciona el documento y consulta su estado. La generación automática de Word con plantillas de Liz se habilitará cuando el servidor tenga acceso seguro a Drive/Gmail y los originales estén contrastados.</p>
+<p class="muted">Pulsa <b>Recuperar documento</b> para obtener los enlaces auténticos a Word/PDF ya entregados. Se procesa un documento por acción. Si no hay original, se muestra exactamente lo pendiente; generar Word nuevo con plantilla de Liz requiere la integración Drive segura.</p>
 <div id="docs"></div>
 <div id="selection" class="warn" style="display:none"></div>
 </div>
@@ -89,15 +89,40 @@ el('program').textContent=data.program||'Programa por verificar';
 el('sourceState').textContent=data.source_status||'Datos preliminares';
 el('findings').textContent=data.findings||'Solo carpeta candidata localizada; verificar originales.';
 if(data.folder_url){el('folderLink').href=data.folder_url;el('folderLink').style.display='inline-flex';}else{el('folderLink').style.display='none';}
-el('docs').replaceChildren();
+el('docs').replaceChildren();el('selection').style.display='none';
+let ready=0;
 for(const doc of data.documents||[]){
 const box=document.createElement('div');box.className='doc';
 const t=document.createElement('div');const b=document.createElement('b');b.textContent=doc.name;
 const p=document.createElement('p');p.textContent='Estado: '+doc.status;t.append(b,p);
-const bt=document.createElement('button');bt.type='button';bt.className='outline';bt.textContent='Seleccionar';
-bt.addEventListener('click',()=>{el('selection').style.display='block';el('selection').textContent='Documento: '+doc.name+'. Estado actual: '+doc.status+'. Revisa sus originales en Drive. La generación Word todavía requiere validación automática de fuentes y plantillas oficiales; no se emitirá un documento incompleto.';});
+const bt=document.createElement('button');bt.type='button';
+bt.className=doc.can_download?'secondary':'outline';
+bt.textContent=doc.can_download?'Recuperar documento':'Ver pendiente';
+if(doc.can_download)ready++;
+bt.addEventListener('click',async()=>{
+el('selection').style.display='block';
+el('selection').replaceChildren();
+const title=document.createElement('b');title.textContent=doc.name;el('selection').append(title);
+const progress=document.createElement('p');progress.textContent='Consultando fuente del documento seleccionado...';el('selection').append(progress);
+bt.disabled=true;
+try{
+const response=await fetch('/v5/groups/'+encodeURIComponent(data.group_id)+'/documents/'+encodeURIComponent(doc.id)+'/generate',{
+method:'POST',headers:{'X-API-Key':el('key').value},cache:'no-store'});
+const result=await response.json();
+if(!response.ok)throw Error(typeof result.detail==='string'?result.detail:JSON.stringify(result.detail||'Sin documento verificable'));
+progress.textContent='Original encontrado en el expediente institucional. Descarga únicamente la versión del alumno que corresponda; no se han alterado firmas ni huellas.';
+for(const [url,label] of [[result.word_url,'Abrir Word original'],[result.pdf_url,'Abrir PDF original']]){
+ if(!url)continue;const a=document.createElement('a');a.className='linkbtn secondary';a.target='_blank';a.rel='noopener noreferrer';a.href=url;a.textContent=label;a.style.margin='8px 8px 0 0';el('selection').append(a);
+ const direct=document.createElement('a');direct.className='linkbtn outline';direct.target='_blank';direct.rel='noopener noreferrer';const id=url.split('/d/')[1]?.split('/')[0];if(id&&/^[a-zA-Z0-9_-]{10,128}$/.test(id)){direct.href='https://drive.google.com/uc?export=download&id='+encodeURIComponent(id);direct.textContent='Descargar '+(label.includes('Word')?'Word':'PDF');direct.style.margin='8px 8px 0 0';el('selection').append(direct);}
+}
+if(!result.word_url&&!result.pdf_url){progress.textContent='No hay Word o PDF enlazado para este documento.';}
+}catch(e){progress.textContent='No disponible: '+e.message;}
+finally{bt.disabled=false;}
+});
 box.append(t,bt);el('docs').appendChild(box);
 }
+const overview=document.createElement('p');overview.className='muted';overview.textContent=ready+' documento(s) con fuente enlazada de '+(data.documents||[]).length+'. Los demás conservan su motivo de pendiente.';
+el('docs').prepend(overview);
 msg('Expediente localizado. Selecciona el documento que quieres revisar.');
 }catch(e){msg('No se pudo consultar el grupo: '+e.message,true);}
 finally{el('search').disabled=false;}
