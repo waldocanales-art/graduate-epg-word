@@ -4,6 +4,20 @@
 **Línea base:** 90 registros F3–F6 / 84 códigos de equipo únicos; 504 Word V3 como **borradores** de comparación, no como expedientes válidos.  
 **Restricción innegociable:** n8n y el generador productivo original deben permanecer intactos.
 
+## 0. Directriz operativa de atención urgente — coordinación EPG (13/10/2026)
+La Coordinación de Investigación de Posgrado ha establecido como instrucción operativa **no volver a solicitar firmas ni huellas que los egresados ya entregaron**. La prioridad es reducir la demora acumulada y aprovechar inmediatamente la evidencia existente en Drive, Gmail y el expediente de cada autor.
+
+**Flujo preferente:**
+1. Recuperar del mismo expediente los documentos ya suscritos, sus firmas y huellas, y los informes Turnitin disponibles; no pedir al alumno que repita la carga por defecto.
+2. Asociar inequívocamente cada evidencia a su **titular real** y equipo mediante nombres, DNI y fuente original; conservar identificador/hash y copia original.
+3. Utilizar originales firmados íntegros siempre que correspondan; si se prepara un nuevo formulario institucional, documentar la base de autorización que invoca la Coordinación para reutilizar la evidencia de ese autor en ese trámite. No atribuirle a un firmante una declaración distinta que no haya aprobado.
+4. Procesar en lote todas las evidencias recuperables; elevar a excepción únicamente los casos donde el documento original no existe, no es legible, pertenece a otro titular o presenta contradicción material.
+5. Extraer el Turnitin guardado en Drive sin nueva solicitud y distinguir informe de versión histórica de la última versión. No bloquear la recuperación y prellenado por un informe antiguo: reportar discrepancia y continuar con los demás documentos del equipo.
+6. No demorar **todos** los archivos de un expediente por la observación puntual de uno: entregar los documentos auténticos ya aptos y reportar aparte los documentos pendientes, sin llamarlos definitivos.
+7. Mantener íntegramente n8n y los servicios productivos; aplicar esta prioridad únicamente en la rama experimental.
+
+La instrucción sobre reutilización se registra como criterio operativo comunicado por la Coordinación, **no como una determinación jurídica autónoma sobre el consentimiento de cada titular**. Debe conservarse trazabilidad verificable de fuente, identidad y autorización institucional aplicada.
+
 ## 1. Problema que resuelve
 Se construyeron 504 Word bajo seis categorías por 84 equipos, pero actualmente no está demostrada la asignación correcta de programa, cantidad de autores, identidad, datos académicos, jurados, formato oficial, firma/huella por firmante ni Turnitin de la versión final. Además, las actas podrían no corresponder a etapas previas a la sustentación. El requerimiento sustituye la generación ciega por un expediente canónico por equipo con controles de evidencia y estado de publicación explícito.
 
