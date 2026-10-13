@@ -205,7 +205,10 @@ def index_health_v5():
     """Diagnóstico no sensible: confirma tamaño de índice, nunca expone datos."""
     try:
         index = _v5_index()
+        docs = read_private_catalog()
         return {"ok": len(index) == 84, "indexed_groups": len(index),
+                "catalogued_document_groups": len(docs),
+                "document_sources_catalogued": sum(len(v) for v in docs.values() if isinstance(v, list)),
                 "snapshot_date": "2026-10-13",
                 "live_drive_connected": False}
     except HTTPException:
