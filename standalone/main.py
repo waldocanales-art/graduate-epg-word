@@ -91,3 +91,85 @@ def render(req: RenderRequest, x_api_key: str | None = Header(default=None)):
         return JSONResponse(output, status_code=422)
     output["status"] = "GENERATED_PENDING_INSTITUTIONAL_REVIEW"
     return JSONResponse(output)
+
+
+# HAWKS V5 — consulta de control por número de grupo (instantánea privada)
+# No configura Drive/Gmail en Render ni da documentos por firmados.
+import re as _re
+import zlib as _zlib
+
+_DOCUMENT_TYPES_V5 = [
+    ("METADATOS", "Hoja de metadatos"),
+    ("DECLARACION_JURADA", "Declaración jurada de autoría"),
+    ("DECLARACION_ORIGINALIDAD", "Declaración de originalidad"),
+    ("AUTORIZACION_PUBLICACION", "Autorización de publicación"),
+    ("ACTA_ORIGINALIDAD", "Acta de originalidad"),
+    ("ACTA_SUSTENTACION", "Acta de sustentación"),
+]
+
+def _v5_index():
+    """Índice no público: solo proviene de variable de entorno privada Render."""
+    raw = os.getenv("HAWKS_V5_GROUP_INDEX_ZLIB_B64", "")
+    if not raw:
+        return {}
+    try:
+        data = json.loads(_zlib.decompress(base64.b64decode(raw, validate=True)))
+        return data if isinstance(data, dict) else {}
+    except (ValueError, TypeError, OSError):
+        raise HTTPException(503, "Índice de grupos no legible; revisar configuración de Render")
+
+def _v5_group(group_number):
+    if not _re.fullmatch(r"[0-9]{1,9}", str(group_number).strip()) or int(group_number) < 1:
+        raise HTTPException(422, "Escribe solamente el número del grupo")
+    return str(int(group_number))
+
+@app.get("/v5/groups/{group_number}")
+def lookup_group_v5(group_number: str, x_api_key: str | None = Header(default=None)):
+    auth(x_api_key)
+    group_id = _v5_group(group_number)
+    index = _v5_index()
+    if not index:
+        raise HTTPException(503, "Catálogo todavía no sincronizado. El servicio no tiene acceso a Drive/Gmail.")
+    item = index.get(group_id)
+    if not item:
+        raise HTTPException(404, "Grupo no encontrado en los 84 registros de control; no se inventarán sus datos.")
+    if not isinstance(item, list) or len(item) < 6:
+        raise HTTPException(503, "Entrada de control incompleta")
+    name, program, phase, folder_id, source_status, findings = item[:6]
+    folder_url = "https://drive.google.com/drive/folders/" + folder_id if folder_id else None
+    return {
+        "ok": True,
+        "group_id": group_id,
+        "team": name,
+        "program": program,
+        "phase": phase,
+        "folder_url": folder_url,
+        "source_status": source_status,
+        "findings": findings,
+        "snapshot_date": "2026-10-13",
+        "live_drive_connected": False,
+        "generation_ready": False,
+        "documents": [
+            {"id": k, "name": label, "status": "FUENTE_POR_VALIDAR",
+             "comment": "Revisar originales existentes en Drive; no fabricar documento ni firma"}
+            for k, label in _DOCUMENT_TYPES_V5
+        ],
+        "notice": "Esta es una instantánea de expedientes localizados. Los datos definitivos y el Word oficial requieren conectar las fuentes institucionales en el servidor."
+    }
+
+@app.post("/v5/groups/{group_number}/documents/{document_id}/generate")
+def generate_one_v5(group_number: str, document_id: str, x_api_key: str | None = Header(default=None)):
+    auth(x_api_key)
+    group_id = _v5_group(group_number)
+    if group_id not in _v5_index():
+        raise HTTPException(404, "Grupo no encontrado en índice de control")
+    if document_id not in {k for k, _ in _DOCUMENT_TYPES_V5}:
+        raise HTTPException(404, "Documento no aplicable o no reconocido")
+    # Generación deliberadamente bloqueada si no existe adaptador real de fuentes.
+    # No usar solo apellidos/grupo como identidades, ni crear actas o firmas falsas.
+    raise HTTPException(409, {
+        "status": "PENDIENTE_CONEXION_DRIVE_GMAIL",
+        "document_id": document_id,
+        "group_id": group_id,
+        "detail": "Para generar un Word auténtico con un clic falta conectar de forma segura Drive/Gmail y sincronizar las plantillas oficiales de Liz. Los originales existentes siguen disponibles desde el vínculo del expediente."
+    })
