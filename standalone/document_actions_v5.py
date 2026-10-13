@@ -22,15 +22,22 @@ TYPE = re.compile(r"^[A-Z_0-9]{3,60}$")
 
 
 def read_private_catalog() -> dict:
-    raw = os.environ.get("HAWKS_V5_DOCUMENT_CATALOG_JSON", "")
-    if not raw:
-        return {}
-    try:
-        result = json.loads(raw)
-    except json.JSONDecodeError:
-        raise ValueError("Catálogo privado inválido")
-    if not isinstance(result, dict):
-        raise ValueError("Catálogo privado no es un objeto")
+    chunks = [os.environ.get("HAWKS_V5_DOCUMENT_CATALOG_JSON", "")]
+    chunks.extend(os.environ.get(f"HAWKS_V5_DOC_CATALOG_PART{i}", "") for i in range(16))
+    result = {}
+    for raw in chunks:
+        if not raw:
+            continue
+        try:
+            part = json.loads(raw)
+        except json.JSONDecodeError:
+            raise ValueError("Catálogo privado inválido")
+        if not isinstance(part, dict):
+            raise ValueError("Catálogo privado no es un objeto")
+        # Base: 4 grupos iniciales con archivos contrastados; los grupos
+        # complementarios solo se combinan si no habían sido corroborados.
+        for gid, rows in part.items():
+            result.setdefault(gid, rows)
     return result
 
 
