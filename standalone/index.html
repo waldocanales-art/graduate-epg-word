@@ -61,7 +61,12 @@ a{color:#a65411}.divider{height:1px;background:#e5e9e4;margin:16px 0}
 <div class="chips"><span class="chip" id="sourceState"></span><span class="chip">Control 13/10/2026</span></div>
 <div class="warn"><b>Verificación de fuentes:</b> <span id="findings"></span></div>
 <a class="linkbtn secondary" id="folderLink" href="#" target="_blank" rel="noopener noreferrer">Abrir expediente en Drive</a>
-<div class="divider"></div><div class="intro"><span class="step">3</span> Trabajar un documento por vez</div>
+<div class="divider"></div>
+<div class="intro"><span class="step">3</span> Generar todos y validar expediente</div>
+<p class="muted">Revisa en conjunto TI, documentos, guía 018/088, normativa de estilo y Turnitin. Descarga un ZIP con inventario, fuentes y observaciones; los originales disponibles permanecen intactos. Mientras no exista lectura autenticada de Drive, este ZIP es de <b>control preliminar</b>, no el expediente definitivo.</p>
+<button id="batchButton" class="wide" type="button">Generar control completo y validar</button>
+<div id="batchStatus" class="warn" role="status" style="display:none"></div>
+<div class="divider"></div><div class="intro"><span class="step">4</span> Trabajar un documento por vez</div>
 <p class="muted">Pulsa <b>Recuperar documento</b> para obtener los enlaces auténticos a Word/PDF ya entregados. Se procesa un documento por acción. Si no hay original, se muestra exactamente lo pendiente; generar Word nuevo con plantilla de Liz requiere la integración Drive segura.</p>
 <div id="docs"></div>
 <div id="selection" class="warn" style="display:none"></div>
@@ -72,6 +77,46 @@ const el=id=>document.getElementById(id);
 let current=null;
 const safe=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function msg(s,error=false){el('message').textContent=s;el('message').className=error?'error':'';}
+el('batchButton').addEventListener('click',async()=>{
+if(!current){msg('Busca primero un número de grupo.',true);return;}
+const button=el('batchButton'),status=el('batchStatus');button.disabled=true;
+status.style.display='block';status.replaceChildren();
+status.textContent='Preparando matriz de coherencia y documentos del expediente...';
+const headers={'X-API-Key':el('key').value};
+try{
+const gid=encodeURIComponent(current.group_id);
+const response=await fetch('/v6/groups/'+gid+'/audit',{headers,cache:'no-store'});
+const audit=await response.json();
+if(!response.ok)throw Error(typeof audit.detail==='string'?audit.detail:'Error de auditoría');
+const issues=audit.issues||[];
+status.replaceChildren();
+const summary=document.createElement('p');
+summary.textContent='Inventario: '+(audit.documents||[]).length+' documentos con enlace. Guía: '+audit.normative_guide+
+'. Estilos detectados: '+((audit.styles_detected||[]).join(', ')||'sin confirmar')+
+'. Observaciones: '+issues.length+'.';
+status.append(summary);
+const points=document.createElement('p');
+points.textContent='Nivel de control: '+audit.validation_level+
+'. Esta ejecución no genera firmas ni certifica la coherencia interna de los Word/PDF sin lectura de sus contenidos.';
+status.append(points);
+for(const issue of issues.slice(0,10)){
+const line=document.createElement('p');line.textContent='• '+issue.code+' — '+issue.detail;
+line.className='muted';status.append(line);
+}
+const generated=await fetch('/v6/groups/'+gid+'/generate-all',{method:'POST',headers,cache:'no-store'});
+if(!generated.ok){let error=await generated.text();throw Error(error.slice(0,400));}
+const data=await generated.blob();
+if(data.size>25000000)throw Error('Paquete mayor al límite de descarga segura.');
+const url=URL.createObjectURL(data);
+const a=document.createElement('a');a.href=url;
+a.download='HAWKS_EPG_'+current.group_id+'_CONTROL_Y_CRUCES.zip';
+a.click();setTimeout(()=>URL.revokeObjectURL(url),3000);
+const delivered=document.createElement('p');
+delivered.textContent='ZIP de control generado y descargado. Los documentos nuevos que falten siguen pendientes de conexión institucional a Drive.';
+status.prepend(delivered);
+}catch(e){status.textContent='No se pudo completar el control: '+e.message;}
+finally{button.disabled=false;}
+});
 el('lookupForm').addEventListener('submit',async ev=>{
 ev.preventDefault();
 const group=el('grupo').value.trim();
