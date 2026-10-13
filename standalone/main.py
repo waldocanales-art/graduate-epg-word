@@ -262,7 +262,7 @@ def generation_health_v5():
             tested[gid]={"generates_docx":binary[:2]==b"PK",
                          "bytes":len(binary),"filled_fields":qa["fields_replaced"]}
         except Exception as exc:
-            tested[gid]={"generates_docx":False,"error_type":type(exc).__name__}
+            tested[gid]={"generates_docx":False,"error_type":type(exc).__name__, "error_detail":str(exc)[:160]}
     return {"ok":all(x["generates_docx"] for x in tested.values()),
             "groups_with_verified_metadata":len(tested),
             "tests":tested,
