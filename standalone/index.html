@@ -67,7 +67,7 @@ a{color:#a65411}.divider{height:1px;background:#e5e9e4;margin:16px 0}
 <button id="batchButton" class="wide" type="button">Generar control completo y validar</button>
 <div id="batchStatus" class="warn" role="status" style="display:none"></div>
 <div class="divider"></div><div class="intro"><span class="step">4</span> Trabajar un documento por vez</div>
-<p class="muted">Pulsa <b>Recuperar documento</b> para obtener los enlaces auténticos a Word/PDF ya entregados. Se procesa un documento por acción. Si no hay original, se muestra exactamente lo pendiente; generar Word nuevo con plantilla de Liz requiere la integración Drive segura.</p>
+<p class="muted">Para cada archivo puedes <b>Recuperar original</b> de Drive o, si están comprobados los datos necesarios, <b>Generar Word nuevo</b>. La generación comienza con las hojas de metadatos de los grupos habilitados; otras declaraciones y actas no se fabrican sin fuentes completas.</p>
 <div id="docs"></div>
 <div id="selection" class="warn" style="display:none"></div>
 </div>
@@ -143,7 +143,7 @@ const p=document.createElement('p');p.textContent='Estado: '+doc.status;t.append
 const bt=document.createElement('button');bt.type='button';
 bt.className=doc.can_download?'secondary':'outline';
 bt.textContent=doc.can_download?'Recuperar documento':'Ver pendiente';
-if(doc.can_download)ready++;
+if(doc.can_download||doc.can_generate_new)ready++;
 bt.addEventListener('click',async()=>{
 el('selection').style.display='block';
 el('selection').replaceChildren();
@@ -164,9 +164,34 @@ if(!result.word_url&&!result.pdf_url){progress.textContent='No hay Word o PDF en
 }catch(e){progress.textContent='No disponible: '+e.message;}
 finally{bt.disabled=false;}
 });
-box.append(t,bt);el('docs').appendChild(box);
+const actions=document.createElement('div');actions.style.display='flex';actions.style.gap='6px';actions.style.flexWrap='wrap';actions.append(bt);
+if(doc.can_generate_new){
+ const gen=document.createElement('button');
+ gen.type='button';gen.className='secondary';gen.textContent='Generar Word nuevo';
+ gen.addEventListener('click',async()=>{
+   gen.disabled=true;el('selection').style.display='block';
+   el('selection').textContent='Generando el Word con los datos verificados...';
+   try{
+     const req=await fetch('/v5/groups/'+encodeURIComponent(data.group_id)+'/documents/'+encodeURIComponent(doc.id)+'/generate-word',{
+       method:'POST',headers:{'X-API-Key':el('key').value},cache:'no-store'});
+     if(!req.ok){
+       const error=await req.json().catch(()=>({}));
+       throw Error(typeof error.detail==='string'?error.detail:JSON.stringify(error.detail||'No es posible generar este Word'));
+     }
+     const blob=await req.blob();
+     if(blob.size>10000000)throw Error('La descarga supera el límite admitido.');
+     const url=URL.createObjectURL(blob),a=document.createElement('a');
+     a.href=url;a.download='HAWKS_EPG_'+data.group_id+'_METADATOS_BORRADOR.docx';a.click();
+     setTimeout(()=>URL.revokeObjectURL(url),5000);
+     el('selection').textContent='Word generado y descargado. Estado: BORRADOR pendiente de cotejo visual con la plantilla oficial de Liz y revisión institucional. Las firmas originales no fueron modificadas.';
+   }catch(err){el('selection').textContent='Generación no completada: '+err.message;}
+   finally{gen.disabled=false;}
+ });
+ actions.append(gen);
 }
-const overview=document.createElement('p');overview.className='muted';overview.textContent=ready+' documento(s) con fuente enlazada de '+(data.documents||[]).length+'. Los demás conservan su motivo de pendiente.';
+box.append(t,actions);el('docs').appendChild(box);
+}
+const overview=document.createElement('p');overview.className='muted';overview.textContent=ready+' documento(s) recuperables o generables de '+(data.documents||[]).length+'. Los demás conservan su motivo de pendiente.';
 el('docs').prepend(overview);
 msg('Expediente localizado. Selecciona el documento que quieres revisar.');
 }catch(e){msg('No se pudo consultar el grupo: '+e.message,true);}
