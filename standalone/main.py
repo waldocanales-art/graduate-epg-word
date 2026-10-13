@@ -206,9 +206,18 @@ def index_health_v5():
     try:
         index = _v5_index()
         docs = read_private_catalog()
-        return {"ok": len(index) == 84, "indexed_groups": len(index),
+        # Verifica estructura, IDs y URLs de cada documento sin exponer PII.
+        broken = []
+        for gid in docs:
+            try:
+                document_rows(gid, docs)
+            except (ValueError, TypeError, KeyError):
+                broken.append(gid)
+        return {"ok": len(index) == 84 and not broken,
+                "indexed_groups": len(index),
                 "catalogued_document_groups": len(docs),
                 "document_sources_catalogued": sum(len(v) for v in docs.values() if isinstance(v, list)),
+                "invalid_document_groups": len(broken),
                 "snapshot_date": "2026-10-13",
                 "live_drive_connected": False}
     except HTTPException:
