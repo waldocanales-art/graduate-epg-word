@@ -181,3 +181,16 @@ def generate_one_v5(group_number: str, document_id: str, x_api_key: str | None =
         "group_id": group_id,
         "detail": "Para generar un Word auténtico con un clic falta conectar de forma segura Drive/Gmail y sincronizar las plantillas oficiales de Liz. Los originales existentes siguen disponibles desde el vínculo del expediente."
     })
+
+
+@app.get("/v5/index-health")
+def index_health_v5():
+    """Diagnóstico no sensible: confirma tamaño de índice, nunca expone datos."""
+    try:
+        index = _v5_index()
+        return {"ok": len(index) == 84, "indexed_groups": len(index),
+                "snapshot_date": "2026-10-13",
+                "live_drive_connected": False}
+    except HTTPException:
+        return JSONResponse({"ok": False, "indexed_groups": 0,
+                             "status": "INDEX_UNREADABLE"}, status_code=503)
