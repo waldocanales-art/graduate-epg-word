@@ -223,3 +223,38 @@ def index_health_v5():
     except HTTPException:
         return JSONResponse({"ok": False, "indexed_groups": 0,
                              "status": "INDEX_UNREADABLE"}, status_code=503)
+
+
+# V6: generar paquete de control de todas las fuentes del grupo.
+# No se declara concluida la generación oficial mientras no se tenga lectura
+# autorizada del contenido de TI, resoluciones y plantillas de Liz.
+from .batch_v6 import audit_group, build_control_zip
+from fastapi.responses import Response
+
+def _v6_report(group_number):
+    gid = _v5_group(group_number)
+    index = _v5_index()
+    if gid not in index:
+        raise HTTPException(404, "Grupo no encontrado en el padrón de control")
+    team, program, phase = index[gid][:3]
+    docs = document_rows(gid)
+    return audit_group(gid, team, program, phase, docs)
+
+@app.get("/v6/groups/{group_number}/audit")
+def audit_group_v6(group_number: str, x_api_key: str | None = Header(default=None)):
+    auth(x_api_key)
+    return _v6_report(group_number)
+
+@app.post("/v6/groups/{group_number}/generate-all")
+def generate_all_v6(group_number: str, x_api_key: str | None = Header(default=None)):
+    auth(x_api_key)
+    report = _v6_report(group_number)
+    content = build_control_zip(report)
+    filename = "HAWKS_EPG_" + report["group_id"] + "_CONTROL_Y_CRUCES.zip"
+    return Response(content, media_type="application/zip",
+                    headers={
+                        "Content-Disposition": 'attachment; filename="' + filename + '"',
+                        "Cache-Control": "no-store",
+                        "X-HAWKS-Release-Status": "CONTROL_ONLY_NOT_FINAL_DOCUMENTS",
+                    })
+
