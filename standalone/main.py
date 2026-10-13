@@ -238,7 +238,34 @@ def _v6_report(group_number):
         raise HTTPException(404, "Grupo no encontrado en el padrón de control")
     team, program, phase = index[gid][:3]
     docs = document_rows(gid)
-    return audit_group(gid, team, program, phase, docs)
+    report = audit_group(gid, team, program, phase, docs)
+    # Auditorías de contenido REAL realizadas en una sesión institucional
+    # pueden adjuntarse vía variable privada de Render, sin copiar PII a GitHub.
+    try:
+        reviews = json.loads(os.environ.get("HAWKS_V6_REVIEWED_CONTENT_JSON", "{}"))
+        reviewed = reviews.get(gid)
+    except (ValueError, AttributeError):
+        reviewed = None
+    if isinstance(reviewed, dict):
+        report["validation_level"] = "COTEJO_PARCIAL_DE_CONTENIDO"
+        report["partially_cross_checked"] = reviewed.get("checks", [])
+        report["review_scope"] = reviewed.get("scope", "")
+        guide = reviewed.get("guide")
+        if guide:
+            report["normative_guide"] = guide
+            report["issues"] = [x for x in report["issues"] if x["code"] != "GUIA_NO_CONFIRMADA"]
+        style = reviewed.get("style")
+        if isinstance(style, str) and style:
+            report["styles_detected"] = [style]
+            report["issues"] = [x for x in report["issues"] if x["code"] != "ESTILO_NO_CONFIRMADO"]
+        for item in reviewed.get("checks", []):
+            if item.get("status") in ("OBSERVACION", "REVISAR", "PENDIENTE"):
+                report["issues"].append({
+                    "code": item.get("code","COTEJO"),
+                    "severity": "REVISION",
+                    "detail": item.get("description","Verificar discrepancia de documentos")
+                })
+    return report
 
 @app.get("/v6/groups/{group_number}/audit")
 def audit_group_v6(group_number: str, x_api_key: str | None = Header(default=None)):
