@@ -265,6 +265,25 @@ def _v6_report(group_number):
                     "severity": "REVISION",
                     "detail": item.get("description","Verificar discrepancia de documentos")
                 })
+    # Contraste de campos: cuando el extractor institucional aporte
+    # fuentes probadas, aplica comparaciones estrictas documento a documento.
+    try:
+        field_snapshots = json.loads(os.environ.get("HAWKS_V6_EXTRACTED_FIELDS_JSON", "{}"))
+        field_group = field_snapshots.get(gid)
+    except (ValueError, AttributeError):
+        field_group = None
+    if isinstance(field_group, dict):
+        from .coherence_v6 import validate_extracted_sources
+        comparison = validate_extracted_sources(
+            field_group.get("canonical", {}), field_group.get("documents", []))
+        report["field_level_comparison"] = comparison
+        for difference in comparison["differences"]:
+            report["issues"].append({
+                "code": "DIFERENCIA_"+str(difference.get("field", "")),
+                "severity": "REVISION",
+                "detail": "Documento "+str(difference.get("document_id",""))+
+                          ": "+str(difference.get("status",""))
+            })
     return report
 
 @app.get("/v6/groups/{group_number}/audit")
