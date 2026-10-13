@@ -99,6 +99,7 @@ import re as _re
 import zlib as _zlib
 from .document_actions_v5 import document_rows, selected_document, read_private_catalog
 from .verified_metadata_v5 import generate_metadata, eligible, profiles
+from .metadata_fallback_v5 import new_metadata
 from app import TEMPLATE_DIR
 
 _DOCUMENT_TYPES_V5 = [
@@ -220,6 +221,15 @@ def generate_one_v5(group_number: str, document_id: str, x_api_key: str | None =
     }
 
 
+def _render_verified_metadata(gid, count):
+    # Try institutional-style installed template first, then a transparent,
+    # explicitly provisional reconstructed layout if it is incompatible.
+    try:
+        return generate_metadata(gid, TEMPLATE_DIR / TEMPLATES["METADATA_" + str(count)])
+    except (ValueError, OSError, KeyError):
+        return new_metadata(gid, profiles()[gid])
+
+
 @app.post("/v5/groups/{group_number}/documents/{document_id}/generate-word")
 def generate_word_v5(group_number: str, document_id: str, x_api_key: str | None = Header(default=None)):
     """Real Word generation with current installed template, pending Liz QA."""
@@ -237,7 +247,7 @@ def generate_word_v5(group_number: str, document_id: str, x_api_key: str | None 
         raise HTTPException(409, "Solo metadatos, con la cantidad auténtica de autores, está habilitado para nuevo Word")
     template = TEMPLATE_DIR / TEMPLATES["METADATA_" + str(count)]
     try:
-        payload, qa = generate_metadata(gid, template)
+        payload, qa = _render_verified_metadata(gid, count)
     except (OSError, ValueError, KeyError) as exc:
         raise HTTPException(409, {"status":"DOCUMENT_NOT_GENERATED", "detail":str(exc)})
     return Response(
@@ -246,7 +256,8 @@ def generate_word_v5(group_number: str, document_id: str, x_api_key: str | None 
         headers={"Content-Disposition":'attachment; filename="HAWKS_EPG_'+gid+'_METADATOS_BORRADOR.docx"',
                  "Cache-Control":"private, no-store",
                  "X-HAWKS-DOCUMENT-STATUS":"BORRADOR_PENDIENTE_REVISION",
-                 "X-HAWKS-FIELDS-REPLACED":str(qa["fields_replaced"])}
+                 "X-HAWKS-FIELDS-REPLACED":str(qa["fields_replaced"]),
+                 "X-HAWKS-TEMPLATE-STATUS":str(qa.get("template_variant","INSTALLED_TEMPLATE_PENDING_LIZ_QA"))}
     )
 
 
@@ -258,9 +269,9 @@ def generation_health_v5():
         count=len(profile.get("authors", []))
         if count not in (1,2,3):continue
         try:
-            binary,qa=generate_metadata(gid,TEMPLATE_DIR/TEMPLATES["METADATA_"+str(count)])
+            binary,qa=_render_verified_metadata(gid,count)
             tested[gid]={"generates_docx":binary[:2]==b"PK",
-                         "bytes":len(binary),"filled_fields":qa["fields_replaced"]}
+                         "bytes":len(binary),"filled_fields":qa["fields_replaced"],"template_variant":qa.get("template_variant","INSTALLED_TEMPLATE_PENDING_LIZ_QA")}
         except Exception as exc:
             tested[gid]={"generates_docx":False,"error_type":type(exc).__name__, "error_detail":str(exc)[:160]}
     return {"ok":all(x["generates_docx"] for x in tested.values()),
