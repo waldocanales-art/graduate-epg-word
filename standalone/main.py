@@ -97,6 +97,7 @@ def render(req: RenderRequest, x_api_key: str | None = Header(default=None)):
 # No configura Drive/Gmail en Render ni da documentos por firmados.
 import re as _re
 import zlib as _zlib
+from .document_actions_v5 import document_rows, selected_document, read_private_catalog
 
 _DOCUMENT_TYPES_V5 = [
     ("METADATOS", "Hoja de metadatos"),
@@ -157,30 +158,46 @@ def lookup_group_v5(group_number: str, x_api_key: str | None = Header(default=No
         "snapshot_date": "2026-10-13",
         "live_drive_connected": False,
         "generation_ready": False,
-        "documents": [
-            {"id": k, "name": label, "status": "FUENTE_POR_VALIDAR",
-             "comment": "Revisar originales existentes en Drive; no fabricar documento ni firma"}
-            for k, label in _DOCUMENT_TYPES_V5
-        ],
+        "documents": document_rows(group_id),
         "notice": "Esta es una instantánea de expedientes localizados. Los datos definitivos y el Word oficial requieren conectar las fuentes institucionales en el servidor."
     }
 
+@app.get("/v5/groups/{group_number}/documents")
+def list_group_docs_v5(group_number: str, x_api_key: str | None = Header(default=None)):
+    auth(x_api_key)
+    gid = _v5_group(group_number)
+    if gid not in _v5_index():
+        raise HTTPException(404, "Grupo no identificado")
+    return {"group_id": gid, "documents": document_rows(gid)}
+
+
 @app.post("/v5/groups/{group_number}/documents/{document_id}/generate")
 def generate_one_v5(group_number: str, document_id: str, x_api_key: str | None = Header(default=None)):
+    """Recupera 1 original auténtico: enlaces Word/PDF, nunca finge firmar."""
     auth(x_api_key)
     group_id = _v5_group(group_number)
     if group_id not in _v5_index():
-        raise HTTPException(404, "Grupo no encontrado en índice de control")
-    if document_id not in {k for k, _ in _DOCUMENT_TYPES_V5}:
-        raise HTTPException(404, "Documento no aplicable o no reconocido")
-    # Generación deliberadamente bloqueada si no existe adaptador real de fuentes.
-    # No usar solo apellidos/grupo como identidades, ni crear actas o firmas falsas.
-    raise HTTPException(409, {
-        "status": "PENDIENTE_CONEXION_DRIVE_GMAIL",
-        "document_id": document_id,
-        "group_id": group_id,
-        "detail": "Para generar un Word auténtico con un clic falta conectar de forma segura Drive/Gmail y sincronizar las plantillas oficiales de Liz. Los originales existentes siguen disponibles desde el vínculo del expediente."
-    })
+        raise HTTPException(404, "Grupo no encontrado en el padrón")
+    try:
+        doc = selected_document(group_id, document_id)
+    except (LookupError, ValueError):
+        raise HTTPException(404, "No hay documento inequívoco para este grupo")
+    if not doc["can_download"]:
+        raise HTTPException(409, {
+            "status": "PENDIENTE_EVIDENCIA",
+            "group_id": group_id, "document_id": document_id,
+            "detail": "No existe enlace de Word/PDF auténtico verificado. Revisar expediente, no inventar firmas, huellas ni actas."
+        })
+    return {
+        "ok": True,
+        "group_id": group_id, "document_id": document_id,
+        "status": "ORIGINAL_RECUPERABLE",
+        "mode": "PRESERVE_EXISTING_DOCUMENT",
+        "word_url": doc["word_url"],
+        "pdf_url": doc["pdf_url"],
+        "message": "Documento ya entregado al expediente. Abre/descarga su original de Drive: no se reemplaza una firma ni se modifica el contenido.",
+        "new_word_generated": False
+    }
 
 
 @app.get("/v5/index-health")
