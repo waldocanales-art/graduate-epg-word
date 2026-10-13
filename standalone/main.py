@@ -109,7 +109,7 @@ _DOCUMENT_TYPES_V5 = [
 
 def _v5_index():
     """Índice no público: solo proviene de variable de entorno privada Render."""
-    raw = os.getenv("HAWKS_V5_GROUP_INDEX_ZLIB_B64", "")
+    raw = os.getenv("HAWKS_V5_GROUP_INDEX_ZLIB_B64", "") or "".join(os.getenv(f"HAWKS_V5_INDEX_PART{i}", "") for i in range(3))
     if not raw:
         return {}
     try:
