@@ -1,0 +1,36 @@
+{
+  "source": "Correo institucional: COMUNICADO | ACTUALIZACIÓN DE FORMATOS PARA REPOSITORIO",
+  "date": "2026-09-03",
+  "drive_folder": "https://drive.google.com/drive/folders/1sC5_-O1BiYuv8RtkkdrQPDjnIiw0Fd0A",
+  "logo": {
+    "name": "LOGO AUTÓNOMA NARANJA.png",
+    "file_id": "1OGj0zI2V-JkzGqLZTKLooHB9rnOuCU2S"
+  },
+  "masters": {
+    "maestria": {
+      "ACTA_SUSTENTACION": "1x5s6fiIFnNp1igUKDt76TZBtch8BVSCf",
+      "ACTA_ORIGINALIDAD": "1DNWzQ6hlhUOqCGtMAuOqbhaSWHNIjhtN",
+      "AUTORIZACION_PUBLICACION": "10J5azhexefo4gwLNajmzsP56DWTxNqHn",
+      "DECLARACION_ORIGINALIDAD": "1WuJw7VpdZUPCSPiGXr--04ROJZoUf5NR",
+      "DECLARACION_JURADA": "1SMGF_5DAYWkE_BFOypLCUrd_z9K8TAzo",
+      "METADATA_1": "1p6-lmC8TPSdTbxAnaWTMimzlBTZrM1Vs",
+      "METADATA_2": "1FC1P3AWieqXy6wWDyEBl-JDTYpIlMZE0",
+      "METADATA_3": "1aMnypc6CbFExT5g9q_OTO8CW69damZHS"
+    },
+    "segunda_especialidad": {
+      "ACTA_ORIGINALIDAD": "1n-Qa4VZHBnFab-4JSg8VRiug-iWsNXp1",
+      "AUTORIZACION_PUBLICACION": "1nk9-L9GBlqhD3z-6nDkAjEU91posnJsZ",
+      "DECLARACION_ORIGINALIDAD": "199B7l2u_OEdALNbH32XyTVF6OP3iDnev",
+      "DECLARACION_JURADA": "1H7SmCsWAGZNlEsbyNwkeqy70N-r15idx",
+      "METADATA_1": "1vtDgVw1ziFPEycbTEWr01uZWQmAE6LjU",
+      "METADATA_2": "1fAdjnBMNEAgY27Ll_s0gWkw3GH3VdyiD",
+      "METADATA_3": "1yAOGWWA7oeFjW_9tWoiO0Q97g09JqjY9"
+    }
+  },
+  "status": "REFERENCES_IDENTIFIED_NOT_SYNCED_TO_RENDER",
+  "restrictions": [
+    "Never use outdated templates when new ones are required",
+    "Do not duplicate fingerprints or signatures between authors",
+    "No generated document is approved without evidence for each signatory"
+  ]
+}
