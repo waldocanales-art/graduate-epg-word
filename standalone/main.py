@@ -447,3 +447,46 @@ def observations_csv_v6(group_number: str, x_api_key: str | None = Header(defaul
         "Cache-Control": "private, no-store",
         "X-HAWKS-Release-Status": "CONTROL_ONLY_NOT_FINAL_DOCUMENTS",
     })
+
+# Demostración: Word real con datos ficticios y estado explícito.
+from .demo_v6 import demo_metadata
+from .drive_adapter_v6 import connection_status, list_folder_tree, DriveConnectionError
+
+@app.get("/v6/demo/metadata.docx")
+def demo_metadata_v6(authors: int = 2):
+    if authors not in (1, 2, 3):
+        raise HTTPException(422, "El ejemplo admite 1, 2 o 3 autores")
+    payload = demo_metadata(authors)
+    return Response(
+        content=payload,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={
+            "Content-Disposition": 'attachment; filename="HAWKS_DEMO_METADATOS_'+str(authors)+'_AUTORES.docx"',
+            "Cache-Control": "no-store",
+            "X-HAWKS-DOCUMENT-STATUS": "SYNTHETIC_DEMO_NOT_OFFICIAL",
+        },
+    )
+
+
+@app.get("/v6/drive/status")
+def drive_status_v6(x_api_key: str | None = Header(default=None)):
+    auth(x_api_key)
+    return connection_status()
+
+
+@app.get("/v6/groups/{group_number}/drive-files")
+def drive_files_v6(group_number: str, x_api_key: str | None = Header(default=None)):
+    """Consulta únicamente la carpeta candidata asociada por el índice privado."""
+    auth(x_api_key)
+    gid = _v5_group(group_number)
+    group = _v5_index().get(gid)
+    if not group:
+        raise HTTPException(404, "Grupo no encontrado en el control institucional")
+    folder_id = group[3] if len(group) >= 4 else ""
+    if not folder_id:
+        raise HTTPException(409, "El grupo no tiene carpeta Drive vinculada")
+    try:
+        result = list_folder_tree(folder_id)
+    except DriveConnectionError as exc:
+        raise HTTPException(503, str(exc))
+    return {"group_id": gid, "source": "DRIVE_READ_ONLY", **result}
