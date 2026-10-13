@@ -12,7 +12,7 @@ from docx import Document
 from app import RenderRequest, TEMPLATES, render as legacy_render
 from document_quality import audit_document
 
-app = FastAPI(title="HAWKS Documentos V3 (experimental)", version="3.0.0-rc1")
+app = FastAPI(title="HAWKS Documentos · control experimental EPG", version="6.1.0-lab")
 
 def auth(x_api_key):
     expected = os.environ.get("DOCUMENTOS_V3_API_KEY")
@@ -23,7 +23,7 @@ def auth(x_api_key):
 
 @app.get("/", include_in_schema=False)
 def home():
-    return FileResponse(Path(__file__).with_name("index.html"), media_type="text/html")
+    return FileResponse(Path(__file__).with_name("index.html"), media_type="text/html", headers={"Cache-Control": "no-store"})
 
 @app.get("/health")
 def health():
@@ -140,7 +140,7 @@ def _v5_index():
                 raise ValueError("Registro adicional de grupo inválido")
             result.setdefault(group_id, record)
         return result
-    except (ValueError, TypeError, OSError):
+    except (ValueError, TypeError, OSError, KeyError, IndexError, _zlib.error):
         raise HTTPException(503, "Índice de grupos no legible; revisar configuración de Render")
 
 def _v5_group(group_number):
@@ -275,7 +275,8 @@ def generate_word_v5(group_number: str, document_id: str, x_api_key: str | None 
 
 
 @app.get("/v5/generation-health")
-def generation_health_v5():
+def generation_health_v5(x_api_key: str | None = Header(default=None)):
+    auth(x_api_key)
     """Non-sensitive self-test; never returns author data or bytes."""
     tested={}
     for gid, profile in profiles().items():
@@ -294,7 +295,8 @@ def generation_health_v5():
 
 
 @app.get("/v5/index-health")
-def index_health_v5():
+def index_health_v5(x_api_key: str | None = Header(default=None)):
+    auth(x_api_key)
     """Diagnóstico no sensible: confirma tamaño de índice, nunca expone datos."""
     try:
         index = _v5_index()
@@ -428,3 +430,20 @@ def batch_selftest_v6():
             "report_files": len(files), "issues_found": len(sample["issues"]),
             "unsupported_compliance_claims": sample["ready_for_institutional_release"],
             "document_generation_enabled": False}
+
+
+@app.get("/v6/groups/{group_number}/observaciones.csv")
+def observations_csv_v6(group_number: str, x_api_key: str | None = Header(default=None)):
+    """Descarga CSV de brechas sin emitir documentos ni modificar fuentes."""
+    auth(x_api_key)
+    from .batch_v6 import _csv
+    report = _v6_report(group_number)
+    rows = ([report["group_id"], report["phase"],
+             item.get("code", ""), item.get("severity", ""), item.get("detail", "")]
+            for item in report.get("issues", []))
+    payload = _csv(rows, ["grupo", "fase", "regla", "severidad", "observacion"])
+    return Response(content=payload, media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": 'attachment; filename="HAWKS_EPG_'+report["group_id"]+'_OBSERVACIONES.csv"',
+        "Cache-Control": "private, no-store",
+        "X-HAWKS-Release-Status": "CONTROL_ONLY_NOT_FINAL_DOCUMENTS",
+    })
