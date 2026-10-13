@@ -1,0 +1,10 @@
+{
+  "version": "HAWKS-DOCUMENTOS-V4-REQ-2026-10-13",
+  "source": "standalone/REQUERIMIENTO_INTEGRAL_V4_84_EQUIPOS.md",
+  "source_accounting": {"operational_rows":90,"unique_groups":84,"previous_drafts":504},
+  "required_quality_gates": ["canonical_group_identity","program_type_verified","author_count_verified","official_template_version","critical_fields_grounded","no_example_values","signer_identity_verified","signature_evidence_per_required_signer","fingerprint_evidence_where_required","publication_consent_if_applicable","turnitin_current_version_if_applicable","defense_act_if_applicable","docx_integrity","visual_layout","traceability"],
+  "statuses": ["BORRADOR","PENDIENTE_DATOS","PENDIENTE_FIRMA","PENDIENTE_HUELLA","EN_REVISION","APTO_REPOSITORIO"],
+  "template_program_types": ["TI","TA"],
+  "privacy": {"allow_real_signatures_in_git":false,"allow_real_fingerprints_in_git":false,"allow_dni_in_git":false},
+  "production_integration": {"n8n_modifications_allowed":false,"requires_explicit_user_approval":true}
+}
