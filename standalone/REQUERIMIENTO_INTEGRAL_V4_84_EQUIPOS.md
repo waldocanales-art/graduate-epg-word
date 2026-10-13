@@ -4,6 +4,8 @@
 **Línea base:** 90 registros F3–F6 / 84 códigos de equipo únicos; 504 Word V3 como **borradores** de comparación, no como expedientes válidos.  
 **Restricción innegociable:** n8n y el generador productivo original deben permanecer intactos.
 
+> **ACTUALIZACIÓN OPERATIVA PRIORITARIA — 13/10/2026:** La única información que proporciona el operador es el **número del grupo**. Todos los otros campos se resuelven automáticamente desde el expediente; se muestran los documentos del grupo para **generar o recuperar exactamente uno por acción**. Esta regla sustituye cualquier formulario manual de nombres, DNI, títulos, JSON, firmas, huellas o Turnitin. Requerimiento y controles detallados: [V5 — solo número y un documento por vez](REQUERIMIENTO_SOLO_NUMERO_GRUPO_DOCUMENTOS_INDIVIDUALES_V5.md). **Aún no está implementada la conexión Drive/Gmail en Render; no confundir el requerimiento con una función desplegada.**
+
 ## 0. Directriz operativa de atención urgente — coordinación EPG (13/10/2026)
 La Coordinación de Investigación de Posgrado ha establecido como instrucción operativa **no volver a solicitar firmas ni huellas que los egresados ya entregaron**. La prioridad es reducir la demora acumulada y aprovechar inmediatamente la evidencia existente en Drive, Gmail y el expediente de cada autor.
 
