@@ -6,7 +6,8 @@ import secrets
 from io import BytesIO
 
 from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from pathlib import Path
 from docx import Document
 from app import RenderRequest, TEMPLATES, render as legacy_render
 from document_quality import audit_document
@@ -19,6 +20,10 @@ def auth(x_api_key):
         raise HTTPException(503, "Falta configurar DOCUMENTOS_V3_API_KEY")
     if not x_api_key or not secrets.compare_digest(x_api_key, expected):
         raise HTTPException(401, "Acceso no autorizado")
+
+@app.get("/", include_in_schema=False)
+def home():
+    return FileResponse(Path(__file__).with_name("index.html"), media_type="text/html")
 
 @app.get("/health")
 def health():
