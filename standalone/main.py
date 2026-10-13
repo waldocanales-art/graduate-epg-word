@@ -375,7 +375,22 @@ def audit_group_v6(group_number: str, x_api_key: str | None = Header(default=Non
 def generate_all_v6(group_number: str, x_api_key: str | None = Header(default=None)):
     auth(x_api_key)
     report = _v6_report(group_number)
-    content = build_control_zip(report)
+    generated = []
+    gid = report["group_id"]
+    if eligible(gid):
+        try:
+            count = len(profiles()[gid]["authors"])
+            payload, qa = _render_verified_metadata(gid, count)
+            generated.append(("HAWKS_EPG_"+gid+"_METADATOS_BORRADOR.docx",payload))
+            report["new_documents_generated"] = 1
+            report["generated_file_status"] = qa["status"]
+            report["generated_template_variant"] = qa.get("template_variant", "INSTALLED_TEMPLATE_PENDING_LIZ_QA")
+            report["issues"].append({"code":"GENERATED_DRAFT_PENDING_LIZ_QA","severity":"REVISION",
+                "detail":"Word nuevo generado y entregado como borrador. Revisar la plantilla de Liz antes de liberar al repositorio."})
+        except Exception:
+            report["issues"].append({"code":"GENERATION_FAILED","severity":"PENDIENTE",
+                "detail":"La construcción del Word no se completó; revisar campos e instalación de plantilla."})
+    content = build_control_zip(report, generated=generated)
     filename = "HAWKS_EPG_" + report["group_id"] + "_CONTROL_Y_CRUCES.zip"
     return Response(content, media_type="application/zip",
                     headers={
