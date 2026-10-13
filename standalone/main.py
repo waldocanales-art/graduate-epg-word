@@ -35,6 +35,35 @@ def render(req: RenderRequest, x_api_key: str | None = Header(default=None)):
     key = req.template_key.upper().strip()
     if key not in TEMPLATES:
         raise HTTPException(400, "Plantilla no soportada")
+    # No emitir documentos que requieran firmas o huellas sin evidencia real provista.
+    # Jamás crear, reutilizar arbitrariamente ni simular firmas/huellas.
+    signer_docs = {"DECLARACION_JURADA", "DECLARACION_ORIGINALIDAD",
+                   "AUTORIZACION_PUBLICACION", "ACTA_SUSTENTACION", "ACTA_ORIGINALIDAD"}
+    image_keys = {str(k).upper().removeprefix("IMG_") for k in req.images}
+    if key in signer_docs:
+        author_count = (3 if key == "METADATA_3" else 2 if key == "METADATA_2" else
+                        int(req.fields.get("AUTHOR_COUNT") or 1))
+        if author_count < 1 or author_count > 3:
+            raise HTTPException(422, "AUTHOR_COUNT debe estar entre 1 y 3")
+        required_signatures = (
+            {f"AUTHOR{i}_SIGNATURE" for i in range(1, author_count + 1)}
+            if author_count > 1 else {"AUTHOR_SIGNATURE"}
+        )
+        if key.startswith("ACTA_"):
+            required_signatures = {"JURY_PRESIDENT_SIGNATURE", "JURY_SECRETARY_SIGNATURE",
+                                   "JURY_VOCAL_SIGNATURE"}
+        missing = sorted(required_signatures - image_keys)
+        if missing:
+            raise HTTPException(422, {"status": "MISSING_AUTHENTIC_SIGNATURES",
+                                       "required_images": missing})
+    if key == "DECLARACION_JURADA":
+        count = int(req.fields.get("AUTHOR_COUNT") or 1)
+        required_prints = ({f"AUTHOR{i}_FINGERPRINT" for i in range(1, count + 1)}
+                           if count > 1 else {"AUTHOR1_FINGERPRINT"})
+        missing_prints = sorted(required_prints - image_keys)
+        if missing_prints:
+            raise HTTPException(422, {"status": "MISSING_AUTHENTIC_FINGERPRINTS",
+                                       "required_images": missing_prints})
     # API aislada reutiliza motor V1 sin editarlo; audita el resultado antes de devolverlo.
     response = legacy_render(req)
     output = json.loads(response.body)
