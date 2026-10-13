@@ -15,6 +15,7 @@ import zipfile
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import PurePosixPath
+from .turnitin_filename_v6 import extract_scores
 
 MAX_FILES = 180
 MAX_FILE = 16 * 1024 * 1024
@@ -85,8 +86,7 @@ def audit_group(group_id, team, program, phase, docs, live_files=None):
     for item in source:
         name = str(item.get("name", ""))
         if "TURNITIN" in _norm(name):
-            pcts = [int(x) for x in PCT_RE.findall(name)]
-            reports.append({"name": name, "percentages_named": pcts,
+            reports.append({"name": name, **extract_scores(name),
                             "date_from_filename": _date(name),
                             "needs_version_reconciliation": True})
     findings = []
@@ -112,11 +112,24 @@ def audit_group(group_id, team, program, phase, docs, live_files=None):
     if len(style) > 1:
         flag("ESTILO_CONFLICTIVO", "REVISION", "Las fuentes refieren varios estilos: "+", ".join(style))
     for rpt in reports:
-        pct = rpt["percentages_named"]
-        if len(pct) != 1:
-            flag("TURNITIN_MULTIPLES_PORCENTAJES", "REVISION", rpt["name"])
-        elif pct[0] > 20:
-            flag("TURNITIN_SUPERA_20_HISTORICO", "REVISION", "Porcentaje nombrado "+str(pct[0])+"%; verificar versión final")
+        sim = rpt["similarity_percentages_named"]
+        ai = rpt["ai_percentages_named"]
+        unknown = rpt["unclassified_percentages_named"]
+        if len(sim) > 1 or len(ai) > 1:
+            flag("TURNITIN_MULTIPLES_PORCENTAJES", "REVISION",
+                 "Hay varios porcentajes de un mismo tipo; revisar informe original: "+rpt["name"])
+        if unknown:
+            flag("TURNITIN_PORCENTAJES_SIN_TIPO", "REVISION",
+                 "No se sabe si corresponden a similitud o escritura IA: "+rpt["name"])
+        if rpt["similarity_inferred_from_filename"]:
+            flag("TURNITIN_SIMILITUD_INFERIDA", "REVISION",
+                 "Porcentaje atribuido provisionalmente a similitud por el nombre; comprobar PDF original")
+        if any(value > 20 for value in sim):
+            flag("TURNITIN_SUPERA_20_HISTORICO", "REVISION",
+                 "Nombre indica similitud superior al 20%; comprobar versión final")
+        if any(value > 30 for value in ai):
+            flag("TURNITIN_IA_SUPERA_30_HISTORICO", "REVISION",
+                 "Nombre indica escritura IA superior al 30%; comprobar versión final")
         ti_dates = sorted(filter(None, (_date(r["name"]) for r in rows if r["category"] == "TRABAJO")))
         if rpt["date_from_filename"] and ti_dates and rpt["date_from_filename"] < ti_dates[-1]:
             flag("TURNITIN_ANTERIOR_AL_TI", "REVISION", "Informe "+rpt["date_from_filename"]+" previo al TI "+ti_dates[-1])
@@ -128,7 +141,8 @@ def audit_group(group_id, team, program, phase, docs, live_files=None):
     return {"group_id": str(group_id), "team": team, "program": program,
             "phase": phase, "validation_level": "METADATOS_Y_NOMBRES" if not live else "ARCHIVOS_ENUMERADOS_SIN_CERTIFICACION",
             "normative_guide": guide, "styles_detected": style, "family_counts": dict(counts),
-            "turnitin_candidates": reports, "documents": rows, "issues": findings,
+            "turnitin_candidates": reports, "turnitin_thresholds": {"similarity_max": 20, "ai_max": 30,
+            "verified_from_original": False}, "documents": rows, "issues": findings,
             "ready_for_institutional_release": False,
             "new_documents_generated": 0,
             "live_drive_read": bool(live),
