@@ -47,6 +47,7 @@ a{color:#a65411}.divider{height:1px;background:#e5e9e4;margin:16px 0}.actionrow{
 <input id="key" type="password" name="key" placeholder="Clave V3 configurada en Render" required>
 <p class="muted">La clave protege el acceso a expedientes y no se almacena en este navegador.</p>
 <button id="search" type="submit" class="wide">Buscar grupo</button>
+<a class="linkbtn secondary wide" style="margin-top:10px" href="/v6/demo/metadata.docx?authors=2">Descargar Word de prueba (sin datos reales)</a>
 </form>
 <div id="message" role="status">Introduce el número del grupo para consultar su expediente.</div>
 </section>
@@ -64,7 +65,7 @@ a{color:#a65411}.divider{height:1px;background:#e5e9e4;margin:16px 0}.actionrow{
 <div class="divider"></div>
 <div class="intro"><span class="step">3</span> Generar todos y validar expediente</div>
 <p class="muted">Revisa en conjunto TI, documentos, guía 018/088, normativa de estilo y Turnitin. Descarga un ZIP con inventario, fuentes y observaciones; los originales disponibles permanecen intactos. Mientras no exista lectura autenticada de Drive, este ZIP es de <b>control preliminar</b>, no el expediente definitivo.</p>
-<div class="actionrow"><button id="auditButton" type="button" class="outline" disabled>Revisar brechas</button><button id="downloadCsv" type="button" class="outline" disabled>Descargar observaciones CSV</button></div><button id="batchButton" class="wide" type="button" disabled>Generar ZIP de control y validar</button>
+<div class="actionrow"><button id="driveButton" type="button" class="outline" disabled>Consultar archivos en Drive</button><button id="auditButton" type="button" class="outline" disabled>Revisar brechas</button><button id="downloadCsv" type="button" class="outline" disabled>Descargar observaciones CSV</button></div><button id="batchButton" class="wide" type="button" disabled>Generar ZIP de control y validar</button>
 <div id="batchStatus" class="warn" role="status" style="display:none"></div>
 <div class="divider"></div><div class="intro"><span class="step">4</span> Trabajar un documento por vez</div>
 <p class="muted">Para cada archivo puedes <b>Recuperar original</b> de Drive o, si están comprobados los datos necesarios, <b>Generar Word nuevo</b>. La generación comienza con las hojas de metadatos de los grupos habilitados; otras declaraciones y actas no se fabrican sin fuentes completas.</p>
@@ -75,7 +76,7 @@ a{color:#a65411}.divider{height:1px;background:#e5e9e4;margin:16px 0}.actionrow{
 <script>
 const el=id=>document.getElementById(id);
 let current=null;
-const lockActions=locked=>{for(const id of ['batchButton','auditButton','downloadCsv'])el(id).disabled=locked;};
+const lockActions=locked=>{for(const id of ['batchButton','auditButton','downloadCsv','driveButton'])el(id).disabled=locked;};
 const safe=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function msg(s,error=false){el('message').textContent=s;el('message').className=error?'error':'';}
 
@@ -103,6 +104,32 @@ function showAudit(audit){
   place.append(line);
  }
 }
+
+el('driveButton').addEventListener('click',async()=>{
+ if(!current)return;
+ const btn=el('driveButton');btn.disabled=true;
+ const target=el('batchStatus');target.style.display='block';target.textContent='Consultando carpetas autorizadas en Drive...';
+ try{
+  const response=await fetch('/v6/groups/'+encodeURIComponent(current.group_id)+'/drive-files',{
+   headers:{'X-API-Key':el('key').value},cache:'no-store'});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'No se pudo abrir Drive');
+  target.replaceChildren();
+  const summary=document.createElement('p');
+  summary.textContent='Drive (solo lectura): '+data.file_count+' archivo(s) encontrados'+(data.truncated?' · inventario limitado':'')+'. Identidad grupo–carpeta y contenido pendientes de cotejo.';
+  target.append(summary);
+  for(const file of (data.files||[]).slice(0,160)){
+   const row=document.createElement('p');row.className='muted';
+   if(file.url&&/^https:\/\/(drive|docs)\.google\.com\//.test(file.url)){
+    const a=document.createElement('a');a.href=file.url;a.target='_blank';a.rel='noopener noreferrer';
+    a.textContent=file.name;row.append(a);
+   }else row.textContent=file.name||'Archivo sin nombre';
+   target.append(row);
+  }
+ }catch(e){target.textContent='Drive aún no conectado: '+e.message+'; debes configurar la cuenta de servicio en Render y darle acceso a las carpetas EPG.';}
+ finally{btn.disabled=!current;}
+});
+
 el('auditButton').addEventListener('click',async()=>{
  const btn=el('auditButton');btn.disabled=true;
  try{showAudit(await fetchAudit());}
