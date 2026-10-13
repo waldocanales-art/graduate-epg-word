@@ -258,3 +258,19 @@ def generate_all_v6(group_number: str, x_api_key: str | None = Header(default=No
                         "X-HAWKS-Release-Status": "CONTROL_ONLY_NOT_FINAL_DOCUMENTS",
                     })
 
+
+
+@app.get("/v6/self-test")
+def batch_selftest_v6():
+    """Sin datos personales. Verifica motor ZIP, reglas y seguridad básica."""
+    import io
+    import zipfile
+    sample = audit_group("999", "EQUIPO DE PRUEBA", "MAESTRIA", "F4", [])
+    package = build_control_zip(sample)
+    with zipfile.ZipFile(io.BytesIO(package)) as archive:
+        valid = archive.testzip() is None
+        files = archive.namelist()
+    return {"ok": valid and not sample["ready_for_institutional_release"],
+            "report_files": len(files), "issues_found": len(sample["issues"]),
+            "unsupported_compliance_claims": sample["ready_for_institutional_release"],
+            "document_generation_enabled": False}
