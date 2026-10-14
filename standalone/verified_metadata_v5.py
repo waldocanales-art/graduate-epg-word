@@ -86,7 +86,17 @@ def _protected_artifacts(docx_bytes):
                if x.startswith(("word/media/", "word/header", "word/footer"))]
         if not any(x.startswith("word/media/") for x in names):
             raise ValueError("La plantilla carece de logotipo institucional incrustado")
-        return {x: sha256(archive.read(x)).hexdigest() for x in names}
+        from lxml import etree
+        result={}
+        for x in names:
+            content=archive.read(x)
+            if x.endswith(".xml"):
+                # python-docx may reserialize an XML empty tag (one byte
+                # difference) without changing any visible branding.
+                # Canonical XML guarantees semantic identity instead.
+                content=etree.tostring(etree.fromstring(content),method="c14n")
+            result[x]=sha256(content).hexdigest()
+        return result
 
 
 def generate_metadata(group_id,template_path):
