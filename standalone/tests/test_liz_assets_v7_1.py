@@ -8,7 +8,7 @@ from standalone.verified_metadata_v5 import _fill, _remove_trailing_liz_placehol
 
 class UniversityBrandingTests(unittest.TestCase):
     def test_logo_and_footer_hashes_preserved(self):
-        def package(logo, header=b"HEADER", footer=b"FOOTER"):
+        def package(logo, header=b'<w:hdr xmlns:w="urn:word"/>', footer=b'<w:ftr xmlns:w="urn:word"/>'):
             b=io.BytesIO()
             with ZipFile(b, "w") as z:
                 z.writestr("word/document.xml", "<w:document/>")
