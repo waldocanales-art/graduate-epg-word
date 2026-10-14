@@ -30,8 +30,11 @@ def _fill(cell,value):
         p.runs[0].font.bold=False
         for r in p.runs[1:]:r.text=""
     else:p.add_run(str(value))
-    for p in cell.paragraphs[1:]:
-        for r in p.runs:r.text=""
+    # Paragraphs used by the template's example instructions become empty
+    # after replacement. Remove them: otherwise an empty extra page is
+    # generated even when all metadata cells have been filled.
+    for extra in list(cell.paragraphs[1:]):
+        cell._tc.remove(extra._p)
 
 def _remove_body_callouts(doc):
     """Remove ONLY embedded Liz instructional text callouts, preserving branding."""
@@ -56,6 +59,35 @@ def _remove_body_callouts(doc):
         )):
             raise ValueError("Persisten indicaciones de Liz superpuestas al contenido")
     return removed
+
+def _remove_trailing_liz_placeholders(doc):
+    """Discard only empty post-table paragraphs from this pinned Liz format."""
+    body=doc.element.body
+    passed_table=False
+    removed=0
+    for child in list(body):
+        if child.tag.endswith("}tbl"):
+            passed_table=True
+            continue
+        if not passed_table or not child.tag.endswith("}p"):
+            continue
+        if child.xpath('.//*[local-name()="t" or local-name()="drawing" or local-name()="pict"]'):
+            raise ValueError("Contenido inesperado tras tabla Liz; bloquear para revisión")
+        body.remove(child)
+        removed += 1
+    return removed
+
+
+def _protected_artifacts(docx_bytes):
+    """Hashes of original header/footer/embedded university brand assets."""
+    from hashlib import sha256
+    with zipfile.ZipFile(io.BytesIO(docx_bytes)) as archive:
+        names=[x for x in archive.namelist()
+               if x.startswith(("word/media/", "word/header", "word/footer"))]
+        if not any(x.startswith("word/media/") for x in names):
+            raise ValueError("La plantilla carece de logotipo institucional incrustado")
+        return {x: sha256(archive.read(x)).hexdigest() for x in names}
+
 
 def generate_metadata(group_id,template_path):
     item=profiles().get(str(group_id))
@@ -106,7 +138,10 @@ def generate_metadata(group_id,template_path):
     if len(filled)!=expected_count or author_idx+1!=len(authors) or not any(f=="title" for _,f in filled):
         raise ValueError("La plantilla no permitió sustituir TODOS los campos verificados; documento bloqueado")
     _remove_body_callouts(doc)
+    _remove_trailing_liz_placeholders(doc)
     stream=io.BytesIO();doc.save(stream);payload=stream.getvalue()
+    if _protected_artifacts(payload)!=_protected_artifacts(template_path):
+        raise ValueError("Logotipo/encabezado/pie de Liz cambió durante la generación; archivo bloqueado")
     check=Document(io.BytesIO(payload))
     text="\n".join(c.text for t in check.tables for r in t.rows for c in r.cells)
     needed=[a["name"] for a in authors]+[item["research"]["title"]]
@@ -116,4 +151,5 @@ def generate_metadata(group_id,template_path):
        "source":"Formato oficial de Liz obtenido de Drive (archivo validado por SHA256)",
        "status":"GENERATED_PENDING_INSTITUTIONAL_REVIEW",
        "template_variant":"LIZ_ORIGINAL_2026_09_VERIFIED",
+       "university_logo_verified": True, "original_header_footer_preserved": True,
        "note":"Relleno automático de plantilla Liz con datos cotejados; requiere revisión institucional. Ninguna firma o huella se ha simulado."}
