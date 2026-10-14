@@ -33,7 +33,7 @@ button.outline{background:white;color:#294433;border:1px solid #a8b7ad}
 #groupId{font-size:32px;margin:0}.warn{padding:12px;background:#fff7ea;border-left:4px solid #d78234;margin:15px 0;font-size:13px}
 a{color:#a65411}.divider{height:1px;background:#e5e9e4;margin:16px 0}.actionrow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.actionrow button{flex:1;min-width:155px}.doc>div:first-child{min-width:0;overflow-wrap:anywhere}@media(max-width:550px){.doc{align-items:flex-start;flex-direction:column}.doc button{min-height:42px}.actionrow{flex-direction:column}}
 </style></head><body>
-<header class="header"><div class="brand">UA | HAWKS</div><p>Documentos EPG · Control y generación documental · V6.1 LAB</p></header>
+<header class="header"><div class="brand">UA | HAWKS</div><p>Documentos EPG · Formatos originales de Liz · V7 LAB</p></header>
 <main>
 <div class="note"><b>Flujo simplificado</b> · Para localizar el expediente solo necesitas el número de grupo. Los datos existentes se recuperan del control, sin escribir nombres, títulos ni JSON. El panel es experimental y no modifica n8n.</div>
 <div class="grid">
@@ -47,7 +47,7 @@ a{color:#a65411}.divider{height:1px;background:#e5e9e4;margin:16px 0}.actionrow{
 <input id="key" type="password" name="key" placeholder="Clave V3 configurada en Render" required>
 <p class="muted">La clave protege el acceso a expedientes y no se almacena en este navegador.</p>
 <button id="search" type="submit" class="wide">Buscar grupo</button>
-<a class="linkbtn secondary wide" style="margin-top:10px" href="/v6/demo/metadata.docx?authors=2">Descargar Word de prueba (sin datos reales)</a>
+<div class="warn" style="margin-top:12px"><b>Nuevo control de formato:</b> solo se admite la plantilla original de Liz, sin maquetas HAWKS ni formatos reconstruidos. Para generar Word real, Drive debe estar autorizado y el expediente tener todos los datos cotejados.</div>
 </form>
 <div id="message" role="status">Introduce el número del grupo para consultar su expediente.</div>
 </section>
@@ -68,7 +68,7 @@ a{color:#a65411}.divider{height:1px;background:#e5e9e4;margin:16px 0}.actionrow{
 <div class="actionrow"><button id="driveButton" type="button" class="outline" disabled>Consultar archivos en Drive</button><button id="auditButton" type="button" class="outline" disabled>Revisar brechas</button><button id="downloadCsv" type="button" class="outline" disabled>Descargar observaciones CSV</button></div><button id="batchButton" class="wide" type="button" disabled>Generar ZIP de control y validar</button>
 <div id="batchStatus" class="warn" role="status" style="display:none"></div>
 <div class="divider"></div><div class="intro"><span class="step">4</span> Trabajar un documento por vez</div>
-<p class="muted">Para cada archivo puedes <b>Recuperar original</b> de Drive o, si están comprobados los datos necesarios, <b>Generar Word nuevo</b>. La generación comienza con las hojas de metadatos de los grupos habilitados; otras declaraciones y actas no se fabrican sin fuentes completas.</p>
+<p class="muted">Para cada archivo puedes <b>Recuperar original</b> de Drive o, si están comprobados los datos necesarios, <b>Generar Word nuevo</b>. Las hojas de metadatos únicamente se generan con los originales de Liz recuperados y verificados desde Drive; si faltan fuentes, el sistema bloquea la creación. Las declaraciones y actas quedan pendientes de validación individual.</p>
 <div id="docs"></div>
 <div id="selection" class="warn" style="display:none"></div>
 </div>
@@ -260,7 +260,7 @@ if(doc.can_generate_new){
      const url=URL.createObjectURL(blob),a=document.createElement('a');
      a.href=url;a.download='HAWKS_EPG_'+data.group_id+'_METADATOS_BORRADOR.docx';a.click();
      setTimeout(()=>URL.revokeObjectURL(url),5000);
-     el('selection').textContent='Word generado y descargado. Estado: BORRADOR pendiente de cotejo visual con la plantilla oficial de Liz y revisión institucional. Las firmas originales no fueron modificadas.';
+     el('selection').textContent='Word generado desde el ORIGINAL verificado de Liz, con datos cotejados. BORRADOR pendiente de aprobación institucional. Ninguna firma ni huella fue incorporada.';
    }catch(err){el('selection').textContent='Generación no completada: '+err.message;}
    finally{gen.disabled=false;}
  });
