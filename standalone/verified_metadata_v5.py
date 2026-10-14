@@ -45,8 +45,16 @@ def _remove_body_callouts(doc):
         )):
             element.getparent().remove(element)
             removed+=1
-    if removed!=5:
-        raise ValueError("Las cinco anotaciones de Liz no coinciden: plantilla cambió")
+    # Algunas anotaciones están ancladas en celdas que desaparecen al
+    # reemplazar texto; no exigir un número fijo de overlays eliminados.
+    for element in doc.element.body.xpath('.//*[local-name()="AlternateContent"]'):
+        texts=" ".join(x.text or "" for x in element.xpath('.//*[local-name()="t"]'))
+        normalized=_n(texts)
+        if any(marker in normalized for marker in (
+            "COLOCAR LOS DATOS", "COLOCAR EL TITULO",
+            "EL OCDE ES DIFERENTE", "REVISAR SI EN EL DNI"
+        )):
+            raise ValueError("Persisten indicaciones de Liz superpuestas al contenido")
     return removed
 
 def generate_metadata(group_id,template_path):
