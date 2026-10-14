@@ -99,7 +99,7 @@ import re as _re
 import zlib as _zlib
 from .document_actions_v5 import document_rows, selected_document, read_private_catalog
 from .verified_metadata_v5 import generate_metadata, eligible, profiles
-from .metadata_fallback_v5 import new_metadata
+from .liz_template_loader_v7 import fetch_official_metadata_template, TEMPLATES as LIZ_METADATA
 from app import TEMPLATE_DIR
 
 _DOCUMENT_TYPES_V5 = [
@@ -150,7 +150,7 @@ def _v5_group(group_number):
 
 def _v5_documents(gid):
     rows = document_rows(gid)
-    if eligible(gid):
+    if eligible(gid) and bool(os.getenv("HAWKS_DRIVE_SA_JSON")):
         count = len(profiles()[gid]["authors"])
         found = False
         for row in rows:
@@ -235,12 +235,9 @@ def generate_one_v5(group_number: str, document_id: str, x_api_key: str | None =
 
 
 def _render_verified_metadata(gid, count):
-    # Try institutional-style installed template first, then a transparent,
-    # explicitly provisional reconstructed layout if it is incompatible.
-    try:
-        return generate_metadata(gid, TEMPLATE_DIR / TEMPLATES["METADATA_" + str(count)])
-    except (ValueError, OSError, KeyError):
-        return new_metadata(gid, profiles()[gid])
+    # Solo Word original de Liz cotejado por SHA256, sin diseño alternativo.
+    source = fetch_official_metadata_template(count)
+    return generate_metadata(gid, source)
 
 
 @app.post("/v5/groups/{group_number}/documents/{document_id}/generate-word")
@@ -258,11 +255,10 @@ def generate_word_v5(group_number: str, document_id: str, x_api_key: str | None 
         document_id[9:].isdigit() and int(document_id[9:]) != count
     ):
         raise HTTPException(409, "Solo metadatos, con la cantidad auténtica de autores, está habilitado para nuevo Word")
-    template = TEMPLATE_DIR / TEMPLATES["METADATA_" + str(count)]
     try:
         payload, qa = _render_verified_metadata(gid, count)
-    except (OSError, ValueError, KeyError) as exc:
-        raise HTTPException(409, {"status":"DOCUMENT_NOT_GENERATED", "detail":str(exc)})
+    except (OSError, ValueError, KeyError, DriveConnectionError) as exc:
+        raise HTTPException(409, {"status":"PENDIENTE_PLANTILLA_ORIGINAL_LIZ", "detail":str(exc)})
     return Response(
         content=payload,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -454,18 +450,8 @@ from .drive_adapter_v6 import connection_status, list_folder_tree, DriveConnecti
 
 @app.get("/v6/demo/metadata.docx")
 def demo_metadata_v6(authors: int = 2):
-    if authors not in (1, 2, 3):
-        raise HTTPException(422, "El ejemplo admite 1, 2 o 3 autores")
-    payload = demo_metadata(authors)
-    return Response(
-        content=payload,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={
-            "Content-Disposition": 'attachment; filename="HAWKS_DEMO_METADATOS_'+str(authors)+'_AUTORES.docx"',
-            "Cache-Control": "no-store",
-            "X-HAWKS-DOCUMENT-STATUS": "SYNTHETIC_DEMO_NOT_OFFICIAL",
-        },
-    )
+    # La maqueta con formato HAWKS no corresponde al original de Liz.
+    raise HTTPException(410, "Maqueta retirada: ahora se requiere el formato original de Liz. Conecta Drive y usa un grupo con datos verificados.")
 
 
 @app.get("/v6/drive/status")
@@ -490,3 +476,17 @@ def drive_files_v6(group_number: str, x_api_key: str | None = Header(default=Non
     except DriveConnectionError as exc:
         raise HTTPException(503, str(exc))
     return {"group_id": gid, "source": "DRIVE_READ_ONLY", **result}
+
+@app.get("/v7/formato-liz/status")
+def liz_status_v7(x_api_key: str | None = Header(default=None)):
+    auth(x_api_key)
+    return {
+        "strict_liz_only": True,
+        "fallback_layout_disabled": True,
+        "drive_credentials_configured": bool(os.getenv("HAWKS_DRIVE_SA_JSON")),
+        "metadata_authors_supported": [1, 2, 3],
+        "source": "Carpeta oficial Liz / Posgrado / Maestría",
+        "templates_installed_in_public_github": False,
+        "latest_format_qa_state": "SOURCE_PINNED_PENDING_INSTITUTIONAL_FINAL_QA",
+        "secondary_specialties": "NOT_YET_VERIFIED",
+    }
