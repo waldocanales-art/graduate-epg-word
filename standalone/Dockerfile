@@ -8,6 +8,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py document_quality.py ./
 COPY templates ./templates
 COPY standalone ./standalone
+# En laboratorio: bloquear despliegues que rompan generación, seguridad o formato Liz.
+RUN python -m unittest discover -s standalone/tests -v
 ENV TEMPLATE_DIR=/app/templates
 EXPOSE 10000
 CMD ["uvicorn","standalone.main:app","--host","0.0.0.0","--port","10000"]
