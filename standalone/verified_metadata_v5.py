@@ -27,29 +27,38 @@ def _fill(cell,value):
     p=cell.paragraphs[0] if cell.paragraphs else cell.add_paragraph()
     if p.runs:
         p.runs[0].text=str(value)
+        p.runs[0].font.bold=False
         for r in p.runs[1:]:r.text=""
     else:p.add_run(str(value))
     for p in cell.paragraphs[1:]:
         for r in p.runs:r.text=""
 
 def _remove_body_callouts(doc):
-    # Black instructional callouts are Word DrawingML overlays in Liz's
-    # blank template; remove them from the new document (not from originals).
-    ns="{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-    root=doc._element
-    for tag in (ns+"drawing",ns+"pict"):
-        for el in list(root.iter(tag)):
-            parent=el.getparent()
-            if parent is not None:parent.remove(el)
+    """Remove ONLY embedded Liz instructional text callouts, preserving branding."""
+    removed=0
+    for element in list(doc.element.body.xpath('.//*[local-name()="AlternateContent"]')):
+        texts=" ".join(x.text or "" for x in element.xpath('.//*[local-name()="t"]'))
+        normalized=_n(texts)
+        if any(marker in normalized for marker in (
+            "COLOCAR LOS DATOS", "COLOCAR EL TITULO",
+            "EL OCDE ES DIFERENTE", "REVISAR SI EN EL DNI"
+        )):
+            element.getparent().remove(element)
+            removed+=1
+    if removed!=5:
+        raise ValueError("Las cinco anotaciones de Liz no coinciden: plantilla cambió")
+    return removed
 
 def generate_metadata(group_id,template_path):
     item=profiles().get(str(group_id))
     if not item:raise ValueError("No hay campos documentales cotejados para este grupo")
     authors=item.get("authors",[])
     if len(authors) not in (1,2,3):raise ValueError("Cantidad de autores sin verificar")
-    p=Path(template_path)
-    if not p.exists():raise ValueError("Plantilla Word todavía no instalada")
-    doc=Document(p)
+    from .liz_template_loader_v7 import validate_official_template
+    if not isinstance(template_path, bytes):
+        raise ValueError("La plantilla debe provenir del original autorizado de Liz en Drive")
+    validate_official_template(template_path, len(authors))
+    doc=Document(io.BytesIO(template_path))
     author_idx=-1;mode="";jury="";filled=[]
     for table in doc.tables:
         for row in table.rows:
@@ -85,8 +94,9 @@ def generate_metadata(group_id,template_path):
                     raise ValueError("Dato no verificado para "+mode+"."+field)
                 _fill(row.cells[1],value)
                 filled.append((mode,field))
-    if len(filled)<20 or not any(f=="title" for _,f in filled):
-        raise ValueError("Plantilla instalada incompatible con hoja de metadatos verificada")
+    expected_count=4*len(authors)+4+9+5
+    if len(filled)!=expected_count or author_idx+1!=len(authors) or not any(f=="title" for _,f in filled):
+        raise ValueError("La plantilla no permitió sustituir TODOS los campos verificados; documento bloqueado")
     _remove_body_callouts(doc)
     stream=io.BytesIO();doc.save(stream);payload=stream.getvalue()
     check=Document(io.BytesIO(payload))
@@ -95,6 +105,7 @@ def generate_metadata(group_id,template_path):
     if any(x not in text for x in needed):
         raise ValueError("Campos del expediente no aparecen en el Word generado")
     return payload, {"fields_replaced":len(filled),"author_count":len(authors),
-       "source":"Hoja de metadatos original recuperada del expediente",
+       "source":"Formato oficial de Liz obtenido de Drive (archivo validado por SHA256)",
        "status":"GENERATED_PENDING_INSTITUTIONAL_REVIEW",
-       "note":"El modelo desplegado debe contrastarse visualmente con la última plantilla de Liz; este archivo no certifica autorización, firma ni huella"}
+       "template_variant":"LIZ_ORIGINAL_2026_09_VERIFIED",
+       "note":"Relleno automático de plantilla Liz con datos cotejados; requiere revisión institucional. Ninguna firma o huella se ha simulado."}
