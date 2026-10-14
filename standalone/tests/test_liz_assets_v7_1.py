@@ -20,6 +20,17 @@ class UniversityBrandingTests(unittest.TestCase):
         self.assertEqual(_protected_artifacts(x),_protected_artifacts(package(b"original")))
         self.assertNotEqual(_protected_artifacts(x),_protected_artifacts(package(b"altered")))
 
+    def test_equivalent_header_xml_serialization_is_safe(self):
+        def pkg(header):
+            b=io.BytesIO()
+            with ZipFile(b,"w") as z:
+                z.writestr("word/media/image1.png",b"REAL-BRAND-BYTES")
+                z.writestr("word/header1.xml",header)
+            return b.getvalue()
+        left=pkg(b'<w:hdr xmlns:w="urn:word"><w:p /></w:hdr>')
+        right=pkg(b'<w:hdr xmlns:w="urn:word"><w:p/></w:hdr>')
+        self.assertEqual(_protected_artifacts(left),_protected_artifacts(right))
+
     def test_missing_university_logo_fails_closed(self):
         b=io.BytesIO()
         with ZipFile(b,"w") as z:z.writestr("word/document.xml", "<w:document/>")
